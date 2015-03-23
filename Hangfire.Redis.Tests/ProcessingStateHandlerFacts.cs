@@ -1,16 +1,16 @@
 ﻿using Hangfire.States;
 using Hangfire.Storage;
-using Moq;
+using NSubstitute;
 using Xunit;
 
-namespace Hangfire.Redis.Tests
+namespace Hangfire.Redis.StackExchange.Tests
 {
     public class ProcessingStateHandlerFacts
     {
         private const string JobId = "1";
 
         private readonly ApplyStateContextMock _context;
-        private readonly Mock<IWriteOnlyTransaction> _transaction;
+        private readonly IWriteOnlyTransaction _transaction;
         
         public ProcessingStateHandlerFacts()
         {
@@ -18,7 +18,7 @@ namespace Hangfire.Redis.Tests
             _context.StateContextValue.JobIdValue = JobId;
             _context.NewStateValue = new ProcessingState("server", 1);
 
-            _transaction = new Mock<IWriteOnlyTransaction>();
+            _transaction = Substitute.For<IWriteOnlyTransaction>();
         }
 
         [Fact]
@@ -32,19 +32,18 @@ namespace Hangfire.Redis.Tests
         public void Apply_ShouldAddTheJob_ToTheProcessingSet()
         {
             var handler = new ProcessingStateHandler();
-            handler.Apply(_context.Object, _transaction.Object);
+            handler.Apply(_context.Object, _transaction);
 
-            _transaction.Verify(x => x.AddToSet(
-                "processing", JobId, It.IsAny<double>()));
+            _transaction.Received().AddToSet("processing", JobId, Arg.Any<double>());
         }
 
         [Fact]
         public void Unapply_ShouldRemoveTheJob_FromTheProcessingSet()
         {
             var handler = new ProcessingStateHandler();
-            handler.Unapply(_context.Object, _transaction.Object);
+            handler.Unapply(_context.Object, _transaction);
 
-            _transaction.Verify(x => x.RemoveFromSet("processing", JobId));
+            _transaction.Received().RemoveFromSet("processing", JobId);
         }
     }
 }

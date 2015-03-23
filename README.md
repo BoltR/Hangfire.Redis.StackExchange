@@ -1,6 +1,6 @@
-Hangfire.Redis
+Hangfire.Redis.StackExchange
 ==============
 
-This repository is **unsupported** – there will be no changes and no issues and pull requests will be accepted. Hangfire.Redis package moved to [Hangfire Pro](http://hangfire.io/pro/) package set.
+A very quick port of the old Hangfire.Redis library to use StackExchange.Redis
 
-#### [Get a subscription](http://hangfire.io/subscriptions/)
+While the project does currently function, there still is cleanup to do.

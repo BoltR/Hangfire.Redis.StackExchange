@@ -1,17 +1,17 @@
 ﻿using System;
 using Hangfire.States;
 using Hangfire.Storage;
-using Moq;
+using NSubstitute;
 using Xunit;
 
-namespace Hangfire.Redis.Tests
+namespace Hangfire.Redis.StackExchange.Tests
 {
     public class FailedStateHandlerFacts
     {
         private const string JobId = "1";
 
         private readonly ApplyStateContextMock _context;
-        private readonly Mock<IWriteOnlyTransaction> _transaction;
+        private readonly IWriteOnlyTransaction _transaction;
 
         public FailedStateHandlerFacts()
         {
@@ -19,7 +19,7 @@ namespace Hangfire.Redis.Tests
             _context.StateContextValue.JobIdValue = JobId;
             _context.NewStateValue = new FailedState(new InvalidOperationException());
 
-            _transaction = new Mock<IWriteOnlyTransaction>();
+            _transaction = Substitute.For<IWriteOnlyTransaction>();
         }
 
         [Fact]
@@ -33,19 +33,18 @@ namespace Hangfire.Redis.Tests
         public void Apply_ShouldAddTheJob_ToTheFailedSet()
         {
             var handler = new FailedStateHandler();
-            handler.Apply(_context.Object, _transaction.Object);
+            handler.Apply(_context.Object, _transaction);
 
-            _transaction.Verify(x => x.AddToSet(
-                "failed", JobId, It.IsAny<double>()));
+            _transaction.Received().AddToSet("failed", JobId, Arg.Any<double>());
         }
 
         [Fact]
         public void Unapply_ShouldRemoveTheJob_FromTheFailedSet()
         {
             var handler = new FailedStateHandler();
-            handler.Unapply(_context.Object, _transaction.Object);
+            handler.Unapply(_context.Object, _transaction);
 
-            _transaction.Verify(x => x.RemoveFromSet("failed", JobId));
+            _transaction.Received().RemoveFromSet("failed", JobId);
         }
     }
 }

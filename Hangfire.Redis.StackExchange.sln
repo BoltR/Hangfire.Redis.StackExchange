@@ -1,13 +1,12 @@
-﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangfire.Redis", "Hangfire.Redis\Hangfire.Redis.csproj", "{8F46F57B-3247-4AA7-B330-57AC088547EB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangfire.Redis.StackExchange", "Hangfire.Redis\Hangfire.Redis.StackExchange.csproj", "{8F46F57B-3247-4AA7-B330-57AC088547EB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangfire.Redis.Tests", "Hangfire.Redis.Tests\Hangfire.Redis.Tests.csproj", "{25909EE6-2A56-4EAC-9D0E-436FF2435E88}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangfire.Redis.StackExchange.Tests", "Hangfire.Redis.Tests\Hangfire.Redis.StackExchange.Tests.csproj", "{25909EE6-2A56-4EAC-9D0E-436FF2435E88}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{283FC2EB-8275-4B7D-B433-324BD1EE7D0B}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{631A5793-7346-4780-A8C0-DD2619E6A22F}"
 	ProjectSection(SolutionItems) = preProject
 		.nuget\NuGet.Config = .nuget\NuGet.Config
 		.nuget\NuGet.exe = .nuget\NuGet.exe

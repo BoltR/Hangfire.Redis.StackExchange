@@ -1,23 +1,22 @@
 ﻿using System.Linq;
 using Xunit;
 
-namespace Hangfire.Redis.Tests
+namespace Hangfire.Redis.StackExchange.Tests
 {
     public class RedisStorageFacts
     {
-        [Fact, CleanRedis]
+        [Fact]
         public void DefaultCtor_InitializesCorrectDefaultValues()
         {
-            var storage = new RedisStorage();
+            var storage = new RedisStorage("localhost:6379", 0); //TODO: Revert to empty constructor
 
-            Assert.Equal("localhost:6379", storage.HostAndPort);
             Assert.Equal(0, storage.Db);
         }
 
-        [Fact, CleanRedis]
+        [Fact]
         public void GetStateHandlers_ReturnsAllHandlers()
         {
-            var storage = new RedisStorage();
+            var storage = new RedisStorage("localhost:6379", 0);
 
             var handlers = storage.GetStateHandlers();
 
@@ -28,9 +27,5 @@ namespace Hangfire.Redis.Tests
             Assert.Contains(typeof(DeletedStateHandler), handlerTypes);
         }
 
-        private RedisStorage CreateStorage()
-        {
-            return new RedisStorage(RedisUtils.GetHostAndPort(), RedisUtils.GetDb());
-        }
     }
 }

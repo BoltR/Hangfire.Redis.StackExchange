@@ -1,12 +1,20 @@
-﻿using System;
+﻿using Hangfire.Storage;
+using StackExchange.Redis;
+using System;
 using System.Collections.Generic;
-using ServiceStack.Redis;
+using System.Linq;
 using Xunit;
 
-namespace Hangfire.Redis.Tests
+namespace Hangfire.Redis.StackExchange.Tests
 {
-    public class RedisConnectionFacts
+    public class RedisConnectionFacts : IClassFixture<RedisFixture>
     {
+        private static RedisFixture Redis;
+        public RedisConnectionFacts(RedisFixture _Redis)
+        {
+            Redis = _Redis;
+        }
+
         [Fact, CleanRedis]
         public void GetStateData_ThrowsAnException_WhenJobIdIsNull()
         {
@@ -30,13 +38,13 @@ namespace Hangfire.Redis.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.SetRangeInHash(
+                redis.HashSet(
                     "hangfire:job:my-job:state",
-                    new Dictionary<string, string>
+                    new HashEntry[]
                     {
-                        { "State", "Name" },
-                        { "Reason", "Reason" },
-                        { "Key", "Value" }
+                        new HashEntry("State", "Name"),
+                        new HashEntry("Reason", "Reason"),
+                        new HashEntry("Key", "Value")
                     });
 
                 var result = connection.GetStateData("my-job");
@@ -53,11 +61,11 @@ namespace Hangfire.Redis.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.SetRangeInHash(
+                redis.HashSet(
                     "hangfire:job:my-job:state",
-                    new Dictionary<string, string>
+                    new HashEntry[]
                     {
-                        { "State", "Name" }
+                        new HashEntry( "State", "Name")
                     });
 
                 var result = connection.GetStateData("my-job");
@@ -92,8 +100,8 @@ namespace Hangfire.Redis.Tests
             UseConnections((redis, connection) =>
             {
                 // Arrange
-                redis.AddItemToSortedSet("hangfire:some-set", "1");
-                redis.AddItemToSortedSet("hangfire:some-set", "2");
+                redis.SortedSetAdd("hangfire:some-set", "1", 0);
+                redis.SortedSetAdd("hangfire:some-set", "2", 0);
 
                 // Act
                 var result = connection.GetAllItemsFromSet("some-set");
@@ -140,7 +148,7 @@ namespace Hangfire.Redis.Tests
                     { "Key2", "Value2" }
                 });
 
-                var hash = redis.GetAllEntriesFromHash("hangfire:some-hash");
+                var hash = redis.HashGetAll("hangfire:some-hash").ToDictionary(x => x.Name, x => x.Value);
                 Assert.Equal("Value1", hash["Key1"]);
                 Assert.Equal("Value2", hash["Key2"]);
             });
@@ -169,10 +177,10 @@ namespace Hangfire.Redis.Tests
             UseConnections((redis, connection) =>
             {
                 // Arrange
-                redis.SetRangeInHash("hangfire:some-hash", new Dictionary<string, string>
+                redis.HashSet("hangfire:some-hash", new HashEntry[]
                 {
-                    { "Key1", "Value1" },
-                    { "Key2", "Value2" }
+                    new HashEntry("Key1", "Value1"),
+                    new HashEntry("Key2", "Value2")
                 });
 
                 // Act
@@ -185,21 +193,14 @@ namespace Hangfire.Redis.Tests
             });
         }
 
-        private void UseConnections(Action<IRedisClient, RedisConnection> action)
+        private void UseConnections(Action<IDatabase, IStorageConnection> action)
         {
-            using (var redis = RedisUtils.CreateClient())
-            using (var connection = new RedisConnection(redis))
-            {
-                action(redis, connection);
-            }
+            action(Redis.Storage.GetDatabase(), Redis.Storage.GetConnection());
         }
 
-        private void UseConnection(Action<RedisConnection> action)
+        private void UseConnection(Action<IStorageConnection> action)
         {
-            using (var connection = new RedisConnection(RedisUtils.CreateClient()))
-            {
-                action(connection);
-            }
+            action(Redis.Storage.GetConnection());
         }
     }
 }

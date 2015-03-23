@@ -1,5 +1,4 @@
-﻿// Copyright © 2013-2014 Sergey Odinokov.
-// Copyright © 2015 Daniel Chernis.
+﻿// Copyright © 2015 Daniel Chernis.
 //
 // Hangfire.Redis.StackExchange is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as 
@@ -14,27 +13,28 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire.Redis.StackExchange. If not, see <http://www.gnu.org/licenses/>.
 
-using Hangfire.States;
-using Hangfire.Storage;
+using StackExchange.Redis;
+using System;
 
 namespace Hangfire.Redis.StackExchange
 {
-    internal class DeletedStateHandler : IStateHandler
+    internal class RedisLock : IDisposable
     {
-        public void Apply(ApplyStateContext context, IWriteOnlyTransaction transaction)
+        private readonly string Key;
+        private readonly string Token;
+        private readonly IDatabase Redis;
+
+        public RedisLock(IDatabase Redis, string Key, TimeSpan Timeout)
         {
-            transaction.InsertToList("deleted", context.JobId);
-            transaction.TrimList("deleted", 0, 99);
+            this.Redis = Redis;
+            this.Key = Key;
+            Token = Guid.NewGuid().ToString();
+            Redis.LockTake(Key, Token, Timeout);
         }
 
-        public void Unapply(ApplyStateContext context, IWriteOnlyTransaction transaction)
+        public void Dispose()
         {
-            transaction.RemoveFromList("deleted", context.JobId);
-        }
-
-        public string StateName
-        {
-            get { return DeletedState.StateName; }
+            Redis.LockRelease(Key, Token);
         }
     }
 }

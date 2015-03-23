@@ -1,89 +1,90 @@
-// This file is part of Hangfire.
 // Copyright © 2013-2014 Sergey Odinokov.
-// 
-// Hangfire is free software: you can redistribute it and/or modify
+// Copyright © 2015 Daniel Chernis.
+//
+// Hangfire.Redis.StackExchange is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as 
 // published by the Free Software Foundation, either version 3 
 // of the License, or any later version.
 // 
-// Hangfire is distributed in the hope that it will be useful,
+// Hangfire.Redis.StackExchange is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 // 
 // You should have received a copy of the GNU Lesser General Public 
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
+// License along with Hangfire.Redis.StackExchange. If not, see <http://www.gnu.org/licenses/>.
 
-using System;
-using System.Collections.Generic;
-using Common.Logging;
-using Hangfire.Redis.Annotations;
+using Hangfire.Logging;
 using Hangfire.Server;
 using Hangfire.States;
 using Hangfire.Storage;
-using ServiceStack.Redis;
+using StackExchange.Redis;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
-namespace Hangfire.Redis
+namespace Hangfire.Redis.StackExchange
 {
-    public class RedisStorage : JobStorage
+    public class RedisStorage : JobStorage, IDisposable
     {
         internal static readonly string Prefix = "hangfire:";
+        private const string ClientName = "Hangfire";
+        private readonly ConnectionMultiplexer ServerPool;
+        private readonly RedisSubscribe Sub;
+        private const string DefaultHost = "localhost";
+        private const string DefaultPort = "6379";
+        private const int DefaultDatabase = 0;
 
-        private readonly PooledRedisClientManager _pooledManager;
+        public TimeSpan InvisibilityTimeout { get; set; }
 
-        public RedisStorage()
-            : this(String.Format("{0}:{1}", RedisNativeClient.DefaultHost, RedisNativeClient.DefaultPort))
-        {
-        }
-
-        public RedisStorage(string hostAndPort)
-            : this(hostAndPort, (int)RedisNativeClient.DefaultDb)
-        {
-        }
-
-        public RedisStorage(string hostAndPort, int db)
-            : this(hostAndPort, db, new RedisStorageOptions())
-        {
-        }
-
-        public RedisStorage(string hostAndPort, int db, RedisStorageOptions options)
-        {
-            if (hostAndPort == null) throw new ArgumentNullException("hostAndPort");
-            if (options == null) throw new ArgumentNullException("options");
-
-            HostAndPort = hostAndPort;
-            Db = db;
-            Options = options;
-
-            _pooledManager = new PooledRedisClientManager(
-                new []{ HostAndPort },
-                new string[0],
-                new RedisClientManagerConfig
-                {
-                    DefaultDb = Db,
-                    MaxWritePoolSize = Options.ConnectionPoolSize
-                });
-        }
-
-        public string HostAndPort { get; private set; }
         public int Db { get; private set; }
-        public RedisStorageOptions Options { get; private set; }
 
-        public PooledRedisClientManager PooledManager { get { return _pooledManager; } }
+        public RedisStorage() : this(String.Format("{0}:{1}", DefaultHost, DefaultPort))
+        {}
+
+        public RedisStorage(string OptionString) : this(OptionString, DefaultDatabase)
+        {}
+
+        public RedisStorage(string OptionString, int db) : this(ConfigurationOptions.Parse(OptionString), db)
+        {}
+
+        public RedisStorage(ConfigurationOptions Options) : this(Options, DefaultDatabase)
+        {}
+
+        public RedisStorage(ConfigurationOptions Options, int db)
+        {
+            if (Options == null) throw new ArgumentNullException("Options");
+            Db = db;
+            InvisibilityTimeout = TimeSpan.FromMinutes(30);
+            Options.AbortOnConnectFail = false;
+            Options.ClientName = ClientName;
+            ServerPool = ConnectionMultiplexer.Connect(Options);
+            Sub = new RedisSubscribe(ServerPool.GetSubscriber());
+        }
 
         public override IMonitoringApi GetMonitoringApi()
         {
-            return new RedisMonitoringApi(_pooledManager);
+            return new RedisMonitoringApi(this);
+        }
+
+        public IDatabase GetDatabase()
+        {
+            return ServerPool.GetDatabase(Db);
+        }
+
+        public RedisSubscribe GetSubscribe()
+        {
+            return Sub;
         }
 
         public override IStorageConnection GetConnection()
         {
-            return new RedisConnection(_pooledManager.GetClient());
+            return new RedisConnection(ServerPool.GetDatabase(Db), Sub);
         }
 
         public override IEnumerable<IServerComponent> GetComponents()
         {
-            yield return new FetchedJobsWatcher(this, Options.InvisibilityTimeout);
+            yield return new FetchedJobsWatcher(this, InvisibilityTimeout);
         }
 
         public override IEnumerable<IStateHandler> GetStateHandlers()
@@ -97,19 +98,23 @@ namespace Hangfire.Redis
         public override void WriteOptionsToLog(ILog logger)
         {
             logger.Info("Using the following options for Redis job storage:");
-            logger.InfoFormat("    Connection pool size: {0}.", Options.ConnectionPoolSize);
         }
 
         public override string ToString()
         {
-            return String.Format("redis://{0}/{1}", HostAndPort, Db);
+            return String.Format("redis://{0}/{1}", String.Join(",", ServerPool.GetEndPoints().Select(x => x.ToString())), Db);
         }
 
-        internal static string GetRedisKey([NotNull] string key)
+        internal static string GetRedisKey(string key)
         {
             if (key == null) throw new ArgumentNullException("key");
 
             return Prefix + key;
+        }
+
+        public void Dispose()
+        {
+            Sub.Dispose();
         }
     }
 }

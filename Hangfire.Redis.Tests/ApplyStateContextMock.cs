@@ -1,8 +1,8 @@
 ﻿using System;
 using Hangfire.States;
-using Moq;
+using NSubstitute;
 
-namespace Hangfire.Redis.Tests
+namespace Hangfire.Redis.StackExchange.Tests
 {
     public class ApplyStateContextMock
     {
@@ -11,7 +11,7 @@ namespace Hangfire.Redis.Tests
         public ApplyStateContextMock()
         {
             StateContextValue = new StateContextMock();
-            NewStateValue = new Mock<IState>().Object;
+            NewStateValue = Substitute.For<IState>();
             OldStateValue = null;
 
             _context = new Lazy<ApplyStateContext>(

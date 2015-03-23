@@ -1,31 +1,32 @@
-// This file is part of Hangfire.
 // Copyright © 2013-2014 Sergey Odinokov.
-// 
-// Hangfire is free software: you can redistribute it and/or modify
+// Copyright © 2015 Daniel Chernis.
+//
+// Hangfire.Redis.StackExchange is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as 
 // published by the Free Software Foundation, either version 3 
 // of the License, or any later version.
 // 
-// Hangfire is distributed in the hope that it will be useful,
+// Hangfire.Redis.StackExchange is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 // 
 // You should have received a copy of the GNU Lesser General Public 
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
+// License along with Hangfire.Redis.StackExchange. If not, see <http://www.gnu.org/licenses/>.
 
+using Hangfire.Common;
+using Hangfire.Logging;
+using Hangfire.Server;
+using StackExchange.Redis;
 using System;
 using System.Threading;
-using Common.Logging;
-using Hangfire.Common;
-using Hangfire.Server;
 
-namespace Hangfire.Redis
+namespace Hangfire.Redis.StackExchange
 {
     internal class FetchedJobsWatcher : IServerComponent
     {
         private readonly TimeSpan _invisibilityTimeout;
-        private static readonly ILog Logger = LogManager.GetLogger(typeof(FetchedJobsWatcher));
+        private static readonly ILog Logger = LogProvider.GetCurrentClassLogger();
 
         private readonly JobStorage _storage;
         private readonly FetchedJobsWatcherOptions _options;
@@ -56,8 +57,7 @@ namespace Hangfire.Redis
         {
             using (var connection = (RedisConnection)_storage.GetConnection())
             {
-                var queues = connection.Redis.GetAllItemsFromSet(
-                    RedisStorage.Prefix + "queues");
+                var queues = connection.Redis.SetMembers(RedisStorage.Prefix + "queues");
 
                 foreach (var queue in queues)
                 {
@@ -75,15 +75,11 @@ namespace Hangfire.Redis
             Logger.DebugFormat(
                 "Acquiring the lock for the fetched list of the '{0}' queue...", queue);
 
-            using (connection.Redis.AcquireLock(
-                String.Format(RedisStorage.Prefix + "queue:{0}:dequeued:lock", queue),
-                _options.FetchedLockTimeout))
+            using (var Lock = new RedisLock(connection.Redis, String.Format(RedisStorage.Prefix + "queue:{0}:dequeued:lock", queue), _options.FetchedLockTimeout))
             {
-                Logger.DebugFormat(
-                    "Looking for timed out jobs in the '{0}' queue...", queue);
+                Logger.DebugFormat("Looking for timed out jobs in the '{0}' queue...", queue);
 
-                var jobIds = connection.Redis.GetAllItemsFromList(
-                    String.Format(RedisStorage.Prefix + "queue:{0}:dequeued", queue));
+                var jobIds = connection.Redis.ListRange(String.Format(RedisStorage.Prefix + "queue:{0}:dequeued", queue));
 
                 var requeued = 0;
 
@@ -111,10 +107,10 @@ namespace Hangfire.Redis
 
         private bool RequeueJobIfTimedOut(RedisConnection connection, string jobId, string queue)
         {
-            var flags = connection.Redis.GetValuesFromHash(
-                String.Format(RedisStorage.Prefix + "job:{0}", jobId),
-                "Fetched",
-                "Checked");
+            var flags = connection.Redis.HashGet(String.Format(RedisStorage.Prefix + "job:{0}", jobId), new RedisValue[2] {
+               "Fetched",
+               "Checked"
+            });
 
             var fetched = flags[0];
             var @checked = flags[1];
@@ -139,7 +135,7 @@ namespace Hangfire.Redis
                 // and after the CheckedTimeout expired, then the server
                 // is dead, and we'll re-queue the job.
 
-                connection.Redis.SetEntryInHash(
+                connection.Redis.HashSet(
                     String.Format(RedisStorage.Prefix + "job:{0}", jobId),
                     "Checked",
                     JobHelper.SerializeDateTime(DateTime.UtcNow));

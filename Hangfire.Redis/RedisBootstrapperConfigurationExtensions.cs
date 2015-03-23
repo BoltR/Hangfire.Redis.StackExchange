@@ -1,20 +1,22 @@
-﻿// This file is part of Hangfire.
-// Copyright © 2013-2014 Sergey Odinokov.
-// 
-// Hangfire is free software: you can redistribute it and/or modify
+﻿// Copyright © 2013-2014 Sergey Odinokov.
+// Copyright © 2015 Daniel Chernis.
+//
+// Hangfire.Redis.StackExchange is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as 
 // published by the Free Software Foundation, either version 3 
 // of the License, or any later version.
 // 
-// Hangfire is distributed in the hope that it will be useful,
+// Hangfire.Redis.StackExchange is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 // 
 // You should have received a copy of the GNU Lesser General Public 
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
+// License along with Hangfire.Redis.StackExchange. If not, see <http://www.gnu.org/licenses/>.
 
-namespace Hangfire.Redis
+using StackExchange.Redis;
+
+namespace Hangfire.Redis.StackExchange
 {
     public static class RedisBootstrapperConfigurationExtensions
     {
@@ -28,7 +30,6 @@ namespace Hangfire.Redis
         {
             var storage = new RedisStorage();
             configuration.UseStorage(storage);
-
             return storage;
         }
 
@@ -38,12 +39,12 @@ namespace Hangfire.Redis
         /// data in db with number '0'.
         /// </summary>
         /// <param name="configuration">Configuration</param>
-        /// <param name="hostAndPort">Host and port, for example 'localhost:6379'</param>
+        /// <param name="OptionString">StackExchange.Redis option string</param>
         public static RedisStorage UseRedisStorage(
             this IBootstrapperConfiguration configuration,
-            string hostAndPort)
+            string OptionString)
         {
-            var storage = new RedisStorage(hostAndPort);
+            var storage = new RedisStorage(OptionString);
             configuration.UseStorage(storage);
 
             return storage;
@@ -55,36 +56,53 @@ namespace Hangfire.Redis
         /// data in the given database number.
         /// </summary>
         /// <param name="configuration">Configuration</param>
-        /// <param name="hostAndPort">Host and port, for example, 'localhost:6379'</param>
+        /// <param name="OptionString">StackExchange.Redis option string</param>
         /// <param name="db">Database number to store the data, for example '0'</param>
         /// <returns></returns>
         public static RedisStorage UseRedisStorage(
             this IBootstrapperConfiguration configuration,
-            string hostAndPort,
+            string OptionString,
             int db)
         {
-            var storage = new RedisStorage(hostAndPort, db);
+            var storage = new RedisStorage(OptionString, db);
             configuration.UseStorage(storage);
 
             return storage;
         }
 
         /// <summary>
-        /// Tells the bootstrapper to use Redis as a job storage with
-        /// the given options, available at the specified host and port,
-        /// and store the data in the given database number. 
+        /// Tells the bootstrapper to use Redis as a job storage
+        /// available at the specified host and port, and store the
+        /// data in the given database number.
         /// </summary>
         /// <param name="configuration">Configuration</param>
-        /// <param name="hostAndPort">Host and port, for example 'localhost:6379'</param>
-        /// <param name="db">Database number to store the data, for example '0'</param>
-        /// <param name="options">Advanced storage options</param>
+        /// <param name="Options">StackExchange ConfigurationOptions</param>
+        /// <returns></returns>
         public static RedisStorage UseRedisStorage(
             this IBootstrapperConfiguration configuration,
-            string hostAndPort,
-            int db,
-            RedisStorageOptions options)
+            ConfigurationOptions Options)
         {
-            var storage = new RedisStorage(hostAndPort, db, options);
+            var storage = new RedisStorage(Options);
+            configuration.UseStorage(storage);
+
+            return storage;
+        }
+
+        /// <summary>
+        /// Tells the bootstrapper to use Redis as a job storage
+        /// available at the specified host and port, and store the
+        /// data in the given database number.
+        /// </summary>
+        /// <param name="configuration">Configuration</param>
+        /// <param name="Options">StackExchange ConfigurationOptions</param>
+        /// <param name="db">Database number to store the data, for example '0'</param>
+        /// <returns></returns>
+        public static RedisStorage UseRedisStorage(
+            this IBootstrapperConfiguration configuration,
+            ConfigurationOptions Options,
+            int db)
+        {
+            var storage = new RedisStorage(Options, db);
             configuration.UseStorage(storage);
 
             return storage;

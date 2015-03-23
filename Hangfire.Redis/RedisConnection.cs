@@ -1,50 +1,51 @@
-// This file is part of Hangfire.
 // Copyright © 2013-2014 Sergey Odinokov.
-// 
-// Hangfire is free software: you can redistribute it and/or modify
+// Copyright © 2015 Daniel Chernis.
+//
+// Hangfire.Redis.StackExchange is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as 
 // published by the Free Software Foundation, either version 3 
 // of the License, or any later version.
 // 
-// Hangfire is distributed in the hope that it will be useful,
+// Hangfire.Redis.StackExchange is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Lesser General Public License for more details.
 // 
 // You should have received a copy of the GNU Lesser General Public 
-// License along with Hangfire. If not, see <http://www.gnu.org/licenses/>.
+// License along with Hangfire.Redis.StackExchange. If not, see <http://www.gnu.org/licenses/>.
 
+using Hangfire.Common;
+using Hangfire.Server;
+using Hangfire.Storage;
+using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
-using Hangfire.Common;
-using Hangfire.Server;
-using Hangfire.Storage;
-using ServiceStack.Redis;
+using System.Threading.Tasks;
 
-namespace Hangfire.Redis
+namespace Hangfire.Redis.StackExchange
 {
     internal class RedisConnection : IStorageConnection
     {
         private static readonly TimeSpan FetchTimeout = TimeSpan.FromSeconds(1);
 
-        public RedisConnection(IRedisClient redis)
+        public RedisConnection(IDatabase redis, RedisSubscribe sub)
         {
             Redis = redis;
+            Sub = sub;
         }
 
-        public IRedisClient Redis { get; private set; }
-
+        public IDatabase Redis { get; private set; }
+        public RedisSubscribe Sub {get; private set;}
         public void Dispose()
         {
-            Redis.Dispose();
         }
 
         public IWriteOnlyTransaction CreateWriteTransaction()
         {
-            return new RedisWriteOnlyTransaction(Redis.CreateTransaction());
+            return new RedisWriteOnlyTransaction(Redis.CreateTransaction(), Sub);
         }
 
         public IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
@@ -63,19 +64,15 @@ namespace Hangfire.Redis
                 var queueKey = RedisStorage.Prefix + String.Format("queue:{0}", queueName);
                 var fetchedKey = RedisStorage.Prefix + String.Format("queue:{0}:dequeued", queueName);
 
-                if (queueIndex == 0)
-                {
-                    jobId = Redis.BlockingPopAndPushItemBetweenLists(
-                        queueKey,
-                        fetchedKey,
-                        FetchTimeout);
-                }
-                else
-                {
-                    jobId = Redis.PopAndPushItemBetweenLists(
-                        queueKey, fetchedKey);
-                }
+                //Always assume that there might be a job to do on first check
+                jobId = Redis.ListRightPopLeftPush(queueKey, fetchedKey);
 
+                if (jobId == null)
+                {
+                    Sub.WaitForJob(cancellationToken);
+                    jobId = Redis.ListRightPopLeftPush(queueKey, fetchedKey);
+                    Sub.JobClaimed();
+                }
             } while (jobId == null);
 
             // The job was fetched by the server. To provide reliability,
@@ -92,11 +89,7 @@ namespace Hangfire.Redis
             // Checkpoint #1-1. The job was fetched into the fetched list,
             // that is being inspected by the FetchedJobsWatcher instance.
             // Job's has the implicit 'Fetched' state.
-
-            Redis.SetEntryInHash(
-                String.Format(RedisStorage.Prefix + "job:{0}", jobId),
-                "Fetched",
-                JobHelper.SerializeDateTime(DateTime.UtcNow));
+            Redis.HashSet(String.Format(RedisStorage.Prefix + "job:{0}", jobId), "Fetched", JobHelper.SerializeDateTime(DateTime.UtcNow));
 
             // Checkpoint #2. The job is in the implicit 'Fetched' state now.
             // This state stores information about fetched time. The job will
@@ -107,7 +100,7 @@ namespace Hangfire.Redis
 
         public IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
         {
-            return Redis.AcquireLock(RedisStorage.Prefix + resource, timeout);
+            return new RedisLock(Redis, RedisStorage.Prefix + resource, timeout);
         }
 
         public string CreateExpiredJob(
@@ -116,39 +109,34 @@ namespace Hangfire.Redis
             DateTime createdAt,
             TimeSpan expireIn)
         {
+
             var jobId = Guid.NewGuid().ToString();
 
             var invocationData = InvocationData.Serialize(job);
 
             // Do not modify the original parameters.
-            var storedParameters = new Dictionary<string, string>(parameters);
-            storedParameters.Add("Type", invocationData.Type);
-            storedParameters.Add("Method", invocationData.Method);
-            storedParameters.Add("ParameterTypes", invocationData.ParameterTypes);
-            storedParameters.Add("Arguments", invocationData.Arguments);
-            storedParameters.Add("CreatedAt", JobHelper.SerializeDateTime(createdAt));
-
-            using (var transaction = Redis.CreateTransaction())
+            var test = new HashEntry[parameters.Count + 5];
+            int i = 0;
+            foreach (var item in parameters)
             {
-                transaction.QueueCommand(x => x.SetRangeInHash(
-                    String.Format(RedisStorage.Prefix + "job:{0}", jobId),
-                    storedParameters));
+                test[i++] = new HashEntry(item.Key, item.Value);
 
-                transaction.QueueCommand(x => x.ExpireEntryIn(
-                    String.Format(RedisStorage.Prefix + "job:{0}", jobId),
-                    expireIn));
-
-                // TODO: check return value
-                transaction.Commit();
             }
+            test[i++] = new HashEntry("Type", invocationData.Type);
+            test[i++] = new HashEntry("Method", invocationData.Method);
+            test[i++] = new HashEntry("ParameterTypes", invocationData.ParameterTypes);
+            test[i++] = new HashEntry("Arguments", invocationData.Arguments);
+            test[i] = new HashEntry("CreatedAt", JobHelper.SerializeDateTime(createdAt));
 
+            var Key = String.Format(RedisStorage.Prefix + "job:{0}", jobId);
+            Redis.HashSet(Key, test);
+            Redis.KeyExpire(Key, expireIn);
             return jobId;
         }
 
         public JobData GetJobData(string id)
         {
-            var storedData = Redis.GetAllEntriesFromHash(
-                String.Format(RedisStorage.Prefix + "job:{0}", id));
+            var storedData = Redis.HashGetAll(String.Format(RedisStorage.Prefix + "job:{0}", id)).ToStringDictionary();
 
             if (storedData.Count == 0) return null;
 
@@ -205,9 +193,7 @@ namespace Hangfire.Redis
         public StateData GetStateData(string jobId)
         {
             if (jobId == null) throw new ArgumentNullException("jobId");
-
-            var entries = Redis.GetAllEntriesFromHash(
-                RedisStorage.Prefix + String.Format("job:{0}:state", jobId));
+            var entries = Redis.HashGetAll(RedisStorage.Prefix + String.Format("job:{0}:state", jobId)).ToStringDictionary();
 
             if (entries.Count == 0) return null;
 
@@ -217,7 +203,7 @@ namespace Hangfire.Redis
 
             return new StateData
             {
-                Name = entries["State"],
+                Name = entries.ContainsKey("State") ? entries["State"] : null,
                 Reason = entries.ContainsKey("Reason") ? entries["Reason"] : null,
                 Data = stateData
             };
@@ -225,32 +211,31 @@ namespace Hangfire.Redis
 
         public void SetJobParameter(string id, string name, string value)
         {
-            Redis.SetEntryInHash(
-                String.Format(RedisStorage.Prefix + "job:{0}", id),
-                name,
-                value);
+            Redis.HashSet(String.Format(RedisStorage.Prefix + "job:{0}", id), name, value);
         }
 
         public string GetJobParameter(string id, string name)
         {
-            return Redis.GetValueFromHash(
-                String.Format(RedisStorage.Prefix + "job:{0}", id),
-                name);
+            return Redis.HashGet(String.Format(RedisStorage.Prefix + "job:{0}", id), name);
         }
 
         public HashSet<string> GetAllItemsFromSet(string key)
         {
             if (key == null) throw new ArgumentNullException("key");
-            
-            var result = Redis.GetAllItemsFromSortedSet(RedisStorage.GetRedisKey(key));
-            return new HashSet<string>(result);
+
+            var result = Redis.SortedSetRangeByValue(RedisStorage.GetRedisKey(key));
+            var set = new HashSet<string>(); //TODO: Optimise?
+            foreach (var value in result)
+            {
+                set.Add(value);
+            }
+            return set;
         }
 
         public string GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore)
         {
-            return Redis.GetRangeFromSortedSetByLowestScore(
-                RedisStorage.Prefix + key, fromScore, toScore, 0, 1)
-                .FirstOrDefault();
+
+            return Redis.SortedSetRangeByScore(key, fromScore, toScore, take: 1).FirstOrDefault();
         }
 
         public void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
@@ -258,43 +243,45 @@ namespace Hangfire.Redis
             if (key == null) throw new ArgumentNullException("key");
             if (keyValuePairs == null) throw new ArgumentNullException("keyValuePairs");
 
-            Redis.SetRangeInHash(RedisStorage.GetRedisKey(key), keyValuePairs);
+            var items = new HashEntry[keyValuePairs.Count()];
+            int i = 0;
+            foreach (var item in keyValuePairs)
+            {
+                items[i++] = new HashEntry(item.Key, item.Value);
+            }
+            Redis.HashSet(RedisStorage.GetRedisKey(key), items);
         }
 
         public Dictionary<string, string> GetAllEntriesFromHash(string key)
         {
             if (key == null) throw new ArgumentNullException("key");
 
-            var result = Redis.GetAllEntriesFromHash(RedisStorage.GetRedisKey(key));
+            var result = Redis.HashGetAll(RedisStorage.GetRedisKey(key)).ToStringDictionary();
 
             return result.Count != 0 ? result : null;
         }
 
         public void AnnounceServer(string serverId, ServerContext context)
         {
-            using (var transaction = Redis.CreateTransaction())
+
+            var transaction = Redis.CreateTransaction();
+
+            transaction.SetAddAsync(RedisStorage.Prefix + "servers", serverId);
+            
+            transaction.HashSetAsync(String.Format(RedisStorage.Prefix + "server:{0}", serverId),
+                new HashEntry[2] {
+                    new HashEntry("WorkerCount", context.WorkerCount.ToString(CultureInfo.InvariantCulture)),
+                    new HashEntry("StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow))
+            });
+
+
+            foreach (var queue in context.Queues)
             {
-                transaction.QueueCommand(x => x.AddItemToSet(
-                    RedisStorage.Prefix + "servers", serverId));
-
-                transaction.QueueCommand(x => x.SetRangeInHash(
-                    String.Format(RedisStorage.Prefix + "server:{0}", serverId),
-                    new Dictionary<string, string>
-                        {
-                            { "WorkerCount", context.WorkerCount.ToString(CultureInfo.InvariantCulture) },
-                            { "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow) },
-                        }));
-
-                foreach (var queue in context.Queues)
-                {
-                    var queue1 = queue;
-                    transaction.QueueCommand(x => x.AddItemToList(
-                        String.Format(RedisStorage.Prefix + "server:{0}:queues", serverId),
-                        queue1));
-                }
-
-                transaction.Commit();
+                var queue1 = queue;
+                transaction.ListRightPushAsync(String.Format(RedisStorage.Prefix + "server:{0}:queues", serverId), queue1);
             }
+
+            transaction.Execute();
         }
 
         public void RemoveServer(string serverId)
@@ -302,62 +289,45 @@ namespace Hangfire.Redis
             RemoveServer(Redis, serverId);
         }
 
-        public static void RemoveServer(IRedisClient redis, string serverId)
+        public static void RemoveServer(IDatabase redis, string serverId)
         {
-            using (var transaction = redis.CreateTransaction())
-            {
-                transaction.QueueCommand(x => x.RemoveItemFromSet(
-                    RedisStorage.Prefix + "servers",
-                    serverId));
-
-                transaction.QueueCommand(x => x.RemoveEntry(
-                    String.Format(RedisStorage.Prefix + "server:{0}", serverId),
-                    String.Format(RedisStorage.Prefix + "server:{0}:queues", serverId)));
-
-                transaction.Commit();
-            }
+            var transaction = redis.CreateTransaction();
+            transaction.SetRemoveAsync(RedisStorage.Prefix + "servers", serverId);
+            transaction.KeyDeleteAsync(String.Format(RedisStorage.Prefix + "server:{0}", serverId));
+            transaction.KeyDeleteAsync(String.Format(RedisStorage.Prefix + "server:{0}:queues", serverId));
+            transaction.Execute();
         }
 
         public void Heartbeat(string serverId)
         {
-            Redis.SetEntryInHash(
-                String.Format(RedisStorage.Prefix + "server:{0}", serverId),
-                "Heartbeat",
-                JobHelper.SerializeDateTime(DateTime.UtcNow));
+            Redis.HashSet(String.Format(RedisStorage.Prefix + "server:{0}", serverId), "Heartbeat", JobHelper.SerializeDateTime(DateTime.UtcNow));
         }
 
         public int RemoveTimedOutServers(TimeSpan timeOut)
         {
-            var serverNames = Redis.GetAllItemsFromSet(RedisStorage.Prefix + "servers");
-            var heartbeats = new Dictionary<string, Tuple<DateTime, DateTime?>>();
+            var serverNames = Redis.SetMembers(RedisStorage.Prefix + "servers");
 
             var utcNow = DateTime.UtcNow;
 
-            using (var pipeline = Redis.CreatePipeline())
+            var batch = Redis.CreateBatch();
+            var heartbeats = new List<KeyValuePair<string, Task<RedisValue[]>>>();
+            foreach (var serverName in serverNames)
             {
-                foreach (var serverName in serverNames)
-                {
-                    var name = serverName;
+                var name = serverName;
 
-                    pipeline.QueueCommand(
-                        x => x.GetValuesFromHash(
-                            String.Format(RedisStorage.Prefix + "server:{0}", name),
-                            "StartedAt", "Heartbeat"),
-                        x => heartbeats.Add(
-                            name,
-                            new Tuple<DateTime, DateTime?>(
-                                JobHelper.DeserializeDateTime(x[0]),
-                                JobHelper.DeserializeNullableDateTime(x[1]))));
-                }
-
-                pipeline.Flush();
+                heartbeats.Add(new KeyValuePair<string,Task<RedisValue[]>>(name,batch.HashGetAsync(String.Format(RedisStorage.Prefix + "server:{0}", name), new RedisValue[] {
+                    "StartedAt",
+                    "Heartbeat"
+                })));
             }
+
+            Task.WaitAll(heartbeats.Select(x => x.Value).ToArray());
 
             var removedServerCount = 0;
             foreach (var heartbeat in heartbeats)
             {
                 var maxTime = new DateTime(
-                    Math.Max(heartbeat.Value.Item1.Ticks, (heartbeat.Value.Item2 ?? DateTime.MinValue).Ticks));
+                    Math.Max(JobHelper.DeserializeDateTime(heartbeat.Value.Result[0]).Ticks, (JobHelper.DeserializeNullableDateTime(heartbeat.Value.Result[1]) ?? DateTime.MinValue).Ticks));
 
                 if (utcNow > maxTime.Add(timeOut))
                 {

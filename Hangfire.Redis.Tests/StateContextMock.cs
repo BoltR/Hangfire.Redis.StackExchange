@@ -2,9 +2,9 @@
 using Hangfire.Common;
 using Hangfire.States;
 using Hangfire.Storage;
-using Moq;
+using NSubstitute;
 
-namespace Hangfire.Redis.Tests
+namespace Hangfire.Redis.StackExchange.Tests
 {
     public class StateContextMock
     {
@@ -15,17 +15,17 @@ namespace Hangfire.Redis.Tests
             JobIdValue = "job-id";
             JobValue = Job.FromExpression(() => Console.WriteLine());
             CreatedAtValue = DateTime.UtcNow;
-            ConnectionValue = new Mock<IStorageConnection>();
+            ConnectionValue = Substitute.For<IStorageConnection>();
 
             _context = new Lazy<StateContext>(
-                () => new StateContext(JobIdValue, JobValue, CreatedAtValue, ConnectionValue.Object));
+                () => new StateContext(JobIdValue, JobValue, CreatedAtValue, ConnectionValue));
         }
 
         public string JobIdValue { get; set; }
         public Job JobValue { get; set; }
         public DateTime CreatedAtValue { get; set; }
 
-        public Mock<IStorageConnection> ConnectionValue { get; set; }
+        public IStorageConnection ConnectionValue { get; set; }
 
         public StateContext Object
         {
