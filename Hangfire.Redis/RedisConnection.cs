@@ -129,8 +129,11 @@ namespace Hangfire.Redis.StackExchange
             test[i] = new HashEntry("CreatedAt", JobHelper.SerializeDateTime(createdAt));
 
             var Key = String.Format(RedisStorage.Prefix + "job:{0}", jobId);
-            Redis.HashSet(Key, test);
-            Redis.KeyExpire(Key, expireIn);
+            var transaction = Redis.CreateTransaction();
+           
+            transaction.HashSetAsync(Key, test);
+            transaction.KeyExpireAsync(Key, expireIn);
+            transaction.Execute();
             return jobId;
         }
 
@@ -223,19 +226,18 @@ namespace Hangfire.Redis.StackExchange
         {
             if (key == null) throw new ArgumentNullException("key");
 
-            var result = Redis.SortedSetRangeByValue(RedisStorage.GetRedisKey(key));
-            var set = new HashSet<string>(); //TODO: Optimise?
+            var result = Redis.SortedSetScan(RedisStorage.GetRedisKey(key));
+            var set = new HashSet<string>();
             foreach (var value in result)
             {
-                set.Add(value);
+                set.Add(value.Element);
             }
             return set;
         }
 
         public string GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore)
         {
-
-            return Redis.SortedSetRangeByScore(key, fromScore, toScore, take: 1).FirstOrDefault();
+            return Redis.SortedSetRangeByScore(RedisStorage.Prefix + key, fromScore, toScore, take: 1).FirstOrDefault();
         }
 
         public void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
@@ -243,13 +245,7 @@ namespace Hangfire.Redis.StackExchange
             if (key == null) throw new ArgumentNullException("key");
             if (keyValuePairs == null) throw new ArgumentNullException("keyValuePairs");
 
-            var items = new HashEntry[keyValuePairs.Count()];
-            int i = 0;
-            foreach (var item in keyValuePairs)
-            {
-                items[i++] = new HashEntry(item.Key, item.Value);
-            }
-            Redis.HashSet(RedisStorage.GetRedisKey(key), items);
+            Redis.HashSet(RedisStorage.GetRedisKey(key), keyValuePairs.ToHashEntryArray());
         }
 
         public Dictionary<string, string> GetAllEntriesFromHash(string key)
@@ -309,25 +305,19 @@ namespace Hangfire.Redis.StackExchange
 
             var utcNow = DateTime.UtcNow;
 
-            var batch = Redis.CreateBatch();
-            var heartbeats = new List<KeyValuePair<string, Task<RedisValue[]>>>();
+            var heartbeats = new List<KeyValuePair<string, RedisValue[]>>();
             foreach (var serverName in serverNames)
             {
                 var name = serverName;
 
-                heartbeats.Add(new KeyValuePair<string,Task<RedisValue[]>>(name,batch.HashGetAsync(String.Format(RedisStorage.Prefix + "server:{0}", name), new RedisValue[] {
-                    "StartedAt",
-                    "Heartbeat"
-                })));
+                heartbeats.Add(new KeyValuePair<string,RedisValue[]>(name, Redis.HashGet(String.Format(RedisStorage.Prefix + "server:{0}", name), new RedisValue[] { "StartedAt", "Heartbeat" })));
             }
-
-            Task.WaitAll(heartbeats.Select(x => x.Value).ToArray());
 
             var removedServerCount = 0;
             foreach (var heartbeat in heartbeats)
             {
                 var maxTime = new DateTime(
-                    Math.Max(JobHelper.DeserializeDateTime(heartbeat.Value.Result[0]).Ticks, (JobHelper.DeserializeNullableDateTime(heartbeat.Value.Result[1]) ?? DateTime.MinValue).Ticks));
+                    Math.Max(JobHelper.DeserializeDateTime(heartbeat.Value[0]).Ticks, (JobHelper.DeserializeNullableDateTime(heartbeat.Value[1]) ?? DateTime.MinValue).Ticks));
 
                 if (utcNow > maxTime.Add(timeOut))
                 {

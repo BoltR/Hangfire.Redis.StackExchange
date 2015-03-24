@@ -22,6 +22,7 @@ using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Hangfire.Redis.StackExchange
@@ -105,20 +106,22 @@ namespace Hangfire.Redis.StackExchange
 
                 var jobs = new Dictionary<string, Task<RedisValue[]>>();
                 var states = new Dictionary<string, Task<RedisValue[]>>();
+                var Tasks = new Task[scheduledJobs.Length * 2];
+                int i = 0;
 
                 var batch = redis.CreateBatch();
                 foreach (var scheduledJob in scheduledJobs)
                 {
-                    var job = scheduledJob;
+                    var JobTask = batch.HashGetAsync(String.Format("hangfire:job:{0}", scheduledJob.Element), new RedisValue[] { "Type", "Method", "ParameterTypes", "Arguments" });
+                    Tasks[i++] = JobTask;
+                    jobs.Add(scheduledJob.Element, JobTask);
 
-                    jobs.Add(job.Element,  batch.HashGetAsync(String.Format("hangfire:job:{0}", job.Element), new RedisValue[]
-                        { "Type", "Method", "ParameterTypes", "Arguments" }));
-
-                    states.Add(job.Element, batch.HashGetAsync(String.Format("hangfire:job:{0}:state", job.Element), new RedisValue[]
-                        {"State", "ScheduledAt"} ));
+                    var StatesTask = batch.HashGetAsync(String.Format("hangfire:job:{0}:state", scheduledJob.Element), new RedisValue[] {"State", "ScheduledAt"} );
+                    Tasks[i++]  = StatesTask;
+                    states.Add(scheduledJob.Element, StatesTask);
                 }
                 batch.Execute();
-                Task.WaitAll(GetTaskWaiter(jobs, states));
+                Task.WaitAll(Tasks);
 
                 return new JobList<ScheduledJobDto>(scheduledJobs
                     .Select(job => new KeyValuePair<string, ScheduledJobDto>(
@@ -136,23 +139,6 @@ namespace Hangfire.Redis.StackExchange
                         }))
                     .ToList());
             });
-        }
-
-        private Task[] GetTaskWaiter<T>(params Dictionary<string, Task<T>>[] Dictionaries)
-        {
-            int Total = Dictionaries.Sum(x => x.Count);
-            var Items = new Task[Total];
-            int i = 0;
-            foreach (var Dict in Dictionaries)
-            {
-                foreach (var item in Dict)
-                {
-                    Items[i++] = item.Value;
-                }
-            }
-
-            return Items;
-
         }
 
         public IDictionary<DateTime, long> SucceededByDatesCount()
@@ -178,40 +164,32 @@ namespace Hangfire.Redis.StackExchange
 
                 var servers = new Dictionary<string, Task<RedisValue[]>>();
                 var queues = new Dictionary<string, Task<RedisValue[]>>();
-
+                var Tasks = new Task[serverNames.Length * 2];
+                int i = 0;
                 var batch = redis.CreateBatch();
                 foreach (var serverName in serverNames)
                 {
-                    var name = serverName;
+                    var ServersTask = batch.HashGetAsync(String.Format("hangfire:server:{0}", serverName), new RedisValue[] { "WorkerCount", "StartedAt", "Heartbeat" });
+                    Tasks[i++] = ServersTask;
+                    servers.Add(serverName, ServersTask);
 
-                    servers.Add(name, batch.HashGetAsync(String.Format("hangfire:server:{0}", name), 
-                        new RedisValue[] { "WorkerCount", "StartedAt", "Heartbeat" }));
-
-                    queues.Add(name, batch.ListRangeAsync(String.Format("hangfire:server:{0}:queues", name)));
+                    var QueuesTask = batch.ListRangeAsync(String.Format("hangfire:server:{0}:queues", serverName));
+                    Tasks[i++] = QueuesTask;
+                    queues.Add(serverName, QueuesTask);
                 }
 
                 batch.Execute();
-                Task.WaitAll(GetTaskWaiter(servers, queues));
+                Task.WaitAll(Tasks);
 
                 return serverNames.Select(x => new ServerDto
                 {
                     Name = x,
                     WorkersCount = int.Parse(servers[x].Result[0]),
-                    Queues = RedisToList(queues[x].Result),
+                    Queues = queues[x].Result.ToStringList(),
                     StartedAt = JobHelper.DeserializeDateTime(servers[x].Result[1]),
                     Heartbeat = JobHelper.DeserializeNullableDateTime(servers[x].Result[2])
                 }).ToList();
             });
-        }
-
-        private IList<string> RedisToList(RedisValue[] Values)
-        {
-            var Result = new List<string>();
-            foreach (var item in Values)
-            {
-                Result.Add(item);
-            }
-            return Result;
         }
 
         public JobList<FailedJobDto> FailedJobs(int from, int count)
@@ -398,19 +376,12 @@ namespace Hangfire.Redis.StackExchange
             return UseConnection(redis =>
             {
                 //TODO: Remove dictionary?
-                var job = redis.HashGetAll(String.Format("hangfire:job:{0}", jobId)).ToDictionary(x => (string)x.Name, x => (string)x.Value);
+                var job = redis.HashGetAll(String.Format("hangfire:job:{0}", jobId)).ToStringDictionary();
                 if (job.Count == 0) return null;
 
                 var hiddenProperties = new[] { "Type", "Method", "ParameterTypes", "Arguments", "State", "CreatedAt" };
 
-                var thistoryList = redis.ListRange(
-                    String.Format("hangfire:job:{0}:history", jobId));
-
-                string[] historyList = new string[thistoryList.Length];
-                for (int i = 0; i < historyList.Length; i++)
-                {
-                    historyList[i] = (string)thistoryList[i];
-                }
+                var historyList = redis.ListRange(String.Format("hangfire:job:{0}:history", jobId)).ToStringArray();
 
                 var history = historyList
                     .Select(JobHelper.FromJson<Dictionary<string, string>>)
@@ -527,27 +498,29 @@ namespace Hangfire.Redis.StackExchange
 
             var jobs = new Dictionary<string, Task<RedisValue[]>>(jobIds.Length);
             var states = new Dictionary<string, Task<RedisValue[]>>(jobIds.Length);
-            var UsedKeys = 
 
             properties = properties ?? new RedisValue[0];
 
+            var Tasks = new List<Task>(jobIds.Length);
             var batch = redis.CreateBatch();
 
             foreach (var jobId in jobIds)
             {
-                var id = jobId;
-
-                jobs.Add(id, batch.HashGetAsync(String.Format("hangfire:job:{0}", id), properties.Union(new RedisValue[] { "Type", "Method", "ParameterTypes", "Arguments" }).ToArray()));
+                var JobsTask = batch.HashGetAsync(String.Format("hangfire:job:{0}", jobId), properties.Union(new RedisValue[] { "Type", "Method", "ParameterTypes", "Arguments" }).ToArray());
+                Tasks.Add(JobsTask);
+                jobs.Add(jobId, JobsTask);
 
                 if (stateProperties != null)
                 {
-                    states.Add(id, batch.HashGetAsync(String.Format("hangfire:job:{0}:state", id), stateProperties));
+                    var StatesTask = batch.HashGetAsync(String.Format("hangfire:job:{0}:state", jobId), stateProperties);
+                    Tasks.Add(StatesTask);
+                    states.Add(jobId, StatesTask);
                 }
 
             }
 
             batch.Execute();
-            Task.WaitAll(GetTaskWaiter(jobs, states));
+            Task.WaitAll(Tasks.ToArray());
 
             return new JobList<T>(jobIds
                 .Select(x => new
@@ -559,11 +532,11 @@ namespace Hangfire.Redis.StackExchange
                         jobs[x].Result[properties.Length + 1],
                         jobs[x].Result[properties.Length + 2],
                         jobs[x].Result[properties.Length + 3]),
-                    State = states.ContainsKey(x) ? states[x].Result.Select(y => (string)y).ToList() : null
+                    State = states.ContainsKey(x) ? states[x].Result.ToStringList() : null
                 })
                 .Select(x => new KeyValuePair<string, T>(
                     x.JobId,
-                    x.Job.TrueForAll(y => y == RedisValue.Null)
+                    x.Job.TrueForAll(y => y == null)
                         ? default(T)
                         : selector(x.Method, x.Job, x.State)))
                 .ToList());
@@ -579,45 +552,30 @@ namespace Hangfire.Redis.StackExchange
             return UseConnection(redis =>
             {
                 var stats = new StatisticsDto();
-
+                
                 var queues = redis.SetMembers("hangfire:queues");
-
+                var Tasks = new Task[queues.Length + 8];
 
                 var batch = redis.CreateBatch();
-                var Server = batch.SetLengthAsync("hangfire:servers");
-                var Queues = batch.SetLengthAsync("hangfire:queues");
-                var Scheduled = batch.SortedSetLengthAsync("hangfire:schedule");
-                var Processing = batch.SortedSetLengthAsync("hangfire:processing");
-                var Succeeded = batch.StringGetAsync("hangfire:stats:succeeded");
-                var Failed = batch.SortedSetLengthAsync("hangfire:failed");
-                var Deleted = batch.StringGetAsync("hangfire:stats:deleted");
-                var Recurring = batch.SortedSetLengthAsync("hangfire:recurring-jobs");
+                Tasks[0] = batch.SetLengthAsync("hangfire:servers").ContinueWith(x => stats.Servers = x.Result);
+                Tasks[1] = batch.SetLengthAsync("hangfire:queues").ContinueWith(x => stats.Queues = x.Result);
+                Tasks[2] = batch.SortedSetLengthAsync("hangfire:schedule").ContinueWith(x => stats.Scheduled = x.Result);
+                Tasks[3] = batch.SortedSetLengthAsync("hangfire:processing").ContinueWith(x => stats.Processing = x.Result);
+                Tasks[4] = batch.StringGetAsync("hangfire:stats:succeeded").ContinueWith(x => stats.Succeeded = long.Parse(x.Result == RedisValue.Null ? "0" : (string)x.Result));
+                Tasks[5] = batch.SortedSetLengthAsync("hangfire:failed").ContinueWith(x => stats.Failed = x.Result);
+                Tasks[6] = batch.StringGetAsync("hangfire:stats:deleted").ContinueWith(x => stats.Deleted = long.Parse(x.Result == RedisValue.Null ? "0" : (string)x.Result));
+                Tasks[7] = batch.SortedSetLengthAsync("hangfire:recurring-jobs").ContinueWith(x => stats.Recurring = x.Result);
 
-
-                var QueueItems = new List<Task<long>>();
+                long QueueItems = 0;
+                int i = 8;
                 foreach (var queue in queues)
                 {
-                    var queueName = queue;
-                    QueueItems.Add(batch.ListLengthAsync(String.Format("hangfire:queue:{0}", queueName)));
+                    Tasks[i++] = batch.ListLengthAsync(String.Format("hangfire:queue:{0}", queue)).ContinueWith(x => Interlocked.Add(ref QueueItems, x.Result));
                 }
 
                 batch.Execute();
-
-                Task.WaitAll(Server, Queues, Scheduled, Processing, Succeeded, Failed, Deleted, Recurring);
-                Task.WaitAll(QueueItems.ToArray());
-                stats.Servers = Server.Result;
-                stats.Queues = Queues.Result;
-                stats.Scheduled = Scheduled.Result;
-                stats.Processing = Processing.Result;
-                stats.Succeeded = long.Parse(Succeeded.Result == RedisValue.Null ? "0" : (string)Succeeded.Result);
-                stats.Failed = Failed.Result;
-                stats.Deleted = long.Parse(Deleted.Result == RedisValue.Null ? "0" : (string)Deleted.Result);
-                stats.Recurring = Recurring.Result;
-                
-                foreach( var item in QueueItems)
-                {
-                    stats.Enqueued += item.Result;
-                }
+                Task.WaitAll(Tasks);
+                stats.Enqueued = QueueItems;
 
                 return stats;
             });

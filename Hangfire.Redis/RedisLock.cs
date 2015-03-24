@@ -29,7 +29,10 @@ namespace Hangfire.Redis.StackExchange
             this.Redis = Redis;
             this.Key = Key;
             Token = Guid.NewGuid().ToString();
-            Redis.LockTake(Key, Token, Timeout);
+            if (!Redis.LockTake(Key, Token, Timeout))
+            {
+                throw new AccessViolationException("Unable to take lock on key");
+            }
         }
 
         public void Dispose()

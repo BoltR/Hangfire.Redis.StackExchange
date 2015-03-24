@@ -55,7 +55,7 @@ namespace Hangfire.Redis.StackExchange
                 {
                     if (replayCount++ >= maxReplayCount)
                     {
-                        throw new Exception(); //TODO: What? RedisException("Transaction commit was failed due to WATCH condition failure. Retry attempts exceeded.");
+                        throw new TimeoutException("Transaction commit was failed due to WATCH condition failure. Retry attempts exceeded.");
                     }
                 }
             }
@@ -64,9 +64,7 @@ namespace Hangfire.Redis.StackExchange
         public void ExpireJob(string jobId, TimeSpan expireIn)
         {
             _transaction.KeyExpireAsync(String.Format(RedisStorage.Prefix + "job:{0}", jobId), expireIn);
-
             _transaction.KeyExpireAsync(String.Format(RedisStorage.Prefix + "job:{0}:history", jobId), expireIn);
-
             _transaction.KeyExpireAsync(String.Format(RedisStorage.Prefix + "job:{0}:state", jobId), expireIn);
         }
 
@@ -83,31 +81,25 @@ namespace Hangfire.Redis.StackExchange
 
             _transaction.KeyDeleteAsync(String.Format(RedisStorage.Prefix + "job:{0}:state", jobId));
 
-            var Serialized = state.SerializeData();
+            var Serialized = new Dictionary<string,string>(state.SerializeData());
             if (state.Reason != null)
             {
                 Serialized.Add("Reason", state.Reason);
             }
-            var storedData = new HashEntry[Serialized.Count];
-            int i = 0;
-            foreach (var item in Serialized)
-            {
-                storedData[i++] = new HashEntry(item.Key, item.Value);
-            }
-
-            _transaction.HashSetAsync(String.Format(RedisStorage.Prefix + "job:{0}:state", jobId), storedData);
+            
+            _transaction.HashSetAsync(String.Format(RedisStorage.Prefix + "job:{0}:state", jobId), Serialized.ToHashEntryArray());
 
             AddJobState(jobId, state);
         }
 
         public void AddJobState(string jobId, IState state)
         {
-            var Serialized = state.SerializeData();
+            var Serialized = new Dictionary<string,string>(state.SerializeData());
             Serialized.Add("State", state.Name);
             Serialized.Add("Reason", state.Reason);
             Serialized.Add("CreatedAt", JobHelper.SerializeDateTime(DateTime.UtcNow));
 
-            _transaction.ListLeftPushAsync(String.Format(RedisStorage.Prefix + "job:{0}:history", jobId), JobHelper.ToJson(Serialized));
+            _transaction.ListRightPushAsync(String.Format(RedisStorage.Prefix + "job:{0}:history", jobId), JobHelper.ToJson(Serialized));
         }
 
         public void AddToQueue(string queue, string jobId)
@@ -172,20 +164,12 @@ namespace Hangfire.Redis.StackExchange
         }
 
         public void SetRangeInHash(
-            string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs) //TODO: Possible to convert to array Hashitems earlier?
+            string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
         {
             if (key == null) throw new ArgumentNullException("key");
             if (keyValuePairs == null) throw new ArgumentNullException("keyValuePairs");
 
-            var count = keyValuePairs.Count();
-            var items = new HashEntry[count];
-            int i = 0;
-            foreach (var item in keyValuePairs)
-            {
-                items[i++] = new HashEntry(item.Key, item.Value);
-            }
-
-            _transaction.HashSetAsync(RedisStorage.GetRedisKey(key), items);
+            _transaction.HashSetAsync(RedisStorage.GetRedisKey(key), keyValuePairs.ToHashEntryArray());
         }
 
         public void RemoveHash(string key)
@@ -194,5 +178,6 @@ namespace Hangfire.Redis.StackExchange
 
             _transaction.KeyDeleteAsync(RedisStorage.GetRedisKey(key));
         }
+
     }
 }
