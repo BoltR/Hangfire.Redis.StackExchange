@@ -77,15 +77,14 @@ namespace Hangfire.Redis.StackExchange
 
                 return new JobList<ProcessingJobDto>(GetJobsWithProperties(redis,
                     jobIds,
-                    null,
-                    new RedisValue[] { "StartedAt", "ServerName", "ServerId", "State" },
+                    new RedisValue[] { "State" },
+                    new RedisValue[] { "StartedAt", "ServerName", "ServerId" },
                     (job, jobData, state) => new ProcessingJobDto
                     {
                         ServerId = state[2] ?? state[1],
                         Job = job,
                         StartedAt = JobHelper.DeserializeNullableDateTime(state[0]),
-                        InProcessingState = ProcessingState.StateName.Equals(
-                            state[3], StringComparison.OrdinalIgnoreCase),
+                        InProcessingState = ProcessingState.StateName.Equals(jobData[0], StringComparison.OrdinalIgnoreCase),
                     }).OrderBy(x => x.Value.StartedAt).ToList());
             });
         }
@@ -205,17 +204,17 @@ namespace Hangfire.Redis.StackExchange
                 return GetJobsWithProperties(
                     redis,
                     failedJobIds,
-                    null,
-                    new RedisValue[] { "FailedAt", "ExceptionType", "ExceptionMessage", "ExceptionDetails", "State", "Reason" },
+                    new RedisValue[] { "State" },
+                    new RedisValue[] { "FailedAt", "ExceptionType", "ExceptionMessage", "ExceptionDetails", "Reason" },
                     (job, jobData, state) => new FailedJobDto
                     {
                         Job = job,
-                        Reason = state[5],
+                        Reason = state[4],
                         FailedAt = JobHelper.DeserializeNullableDateTime(state[0]),
                         ExceptionType = state[1],
                         ExceptionMessage = state[2],
                         ExceptionDetails = state[3],
-                        InFailedState = FailedState.StateName.Equals(state[4], StringComparison.OrdinalIgnoreCase)
+                        InFailedState = FailedState.StateName.Equals(jobData[0], StringComparison.OrdinalIgnoreCase)
                     });
             });
         }
@@ -232,17 +231,17 @@ namespace Hangfire.Redis.StackExchange
                 return GetJobsWithProperties(
                     redis,
                     succeededJobIds,
-                    null,
-                    new RedisValue[] { "SucceededAt", "PerformanceDuration", "Latency", "State", "Result" },
+                    new RedisValue[] { "State" },
+                    new RedisValue[] { "SucceededAt", "PerformanceDuration", "Latency", "Result" },
                     (job, jobData, state) => new SucceededJobDto
                     {
                         Job = job,
-                        Result = state[4],
+                        Result = state[3],
                         SucceededAt = JobHelper.DeserializeNullableDateTime(state[0]),
                         TotalDuration = state[1] != null && state[2] != null
                             ? (long?) long.Parse(state[1]) + (long?) long.Parse(state[2])
                             : null,
-                        InSucceededState = SucceededState.StateName.Equals(state[3], StringComparison.OrdinalIgnoreCase)
+                        InSucceededState = SucceededState.StateName.Equals(jobData[0], StringComparison.OrdinalIgnoreCase)
                     });
             });
         }
@@ -259,13 +258,13 @@ namespace Hangfire.Redis.StackExchange
                 return GetJobsWithProperties(
                     redis,
                     deletedJobIds,
-                    null,
-                    new RedisValue[] { "DeletedAt", "State" },
+                    new RedisValue[] { "State" },
+                    new RedisValue[] { "DeletedAt" },
                     (job, jobData, state) => new DeletedJobDto
                     {
                         Job = job,
                         DeletedAt = JobHelper.DeserializeNullableDateTime(state[0]),
-                        InDeletedState = DeletedState.StateName.Equals(state[1], StringComparison.OrdinalIgnoreCase)
+                        InDeletedState = DeletedState.StateName.Equals(jobData[0], StringComparison.OrdinalIgnoreCase)
                     });
             });
         }
