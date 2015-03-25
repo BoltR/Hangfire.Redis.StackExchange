@@ -1,6 +1,6 @@
 Hangfire.Redis.StackExchange
 ==============
 
-A very quick port of the old Hangfire.Redis library to use StackExchange.Redis
+A quick port of the old Hangfire.Redis library to use StackExchange.Redis
 
-While the project does currently function, there still is cleanup to do.
+Can be found on NuGet at https://www.nuget.org/packages/HangFire.Redis.SE/
