@@ -9,14 +9,14 @@ namespace Hangfire.Redis.StackExchange.Tests
 	public class FetchedJobsWatcherFacts : IClassFixture<RedisFixture>
 	{
 
-		private static RedisFixture Redis; //This shouldn't really be static, but BeforeAfter tests require it in order to be passed in
+		private RedisFixture Redis;
 		private static readonly TimeSpan InvisibilityTimeout = TimeSpan.FromSeconds(10);
 
 		private readonly CancellationTokenSource _cts;
 
-		public FetchedJobsWatcherFacts(RedisFixture _Redis)
+		public FetchedJobsWatcherFacts(RedisFixture Redis)
 		{
-			Redis = _Redis; //Urg
+			this.Redis = Redis;
 			_cts = new CancellationTokenSource();
 			_cts.Cancel();
 		}

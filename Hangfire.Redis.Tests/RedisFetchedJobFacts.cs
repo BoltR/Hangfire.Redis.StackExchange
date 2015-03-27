@@ -12,12 +12,12 @@ namespace Hangfire.Redis.StackExchange.Tests
         private const string Queue = "queue";
 
         private readonly IDatabase _redis;
-        private static RedisFixture Redis;
+        private readonly RedisFixture Redis;
 
-        public RedisFetchedJobFacts(RedisFixture _Redis)
+        public RedisFetchedJobFacts(RedisFixture Redis)
         {
             _redis = Substitute.For<IDatabase>();
-            Redis = _Redis;
+            this.Redis = Redis;
         }
 
         [Fact]

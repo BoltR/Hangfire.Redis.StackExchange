@@ -1,0 +1,24 @@
+<Project xmlns='http://schemas.microsoft.com/developer/msbuild/2003'  ToolsVersion="4.0">
+  <UsingTask TaskName="FindToolDirectoryFromPackages"
+             TaskFactory="CodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+    <ParameterGroup>
+      <PackagesDir ParameterType="System.String" Required="true" />
+      <FileToLocate ParameterType="System.String" Required="true" />
+      <Path ParameterType="System.String" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.Linq" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+          Path = System.IO.Directory.EnumerateFiles(PackagesDir, FileToLocate, SearchOption.AllDirectories)
+                    .OrderBy(k => System.IO.Path.GetDirectoryName(k))
+                    .Select(k => System.IO.Path.GetDirectoryName(k))
+                      .FirstOrDefault();
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+  <ImportGroup>
+  </ImportGroup>
+</Project>

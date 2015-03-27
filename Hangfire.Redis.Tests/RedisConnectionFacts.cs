@@ -9,10 +9,10 @@ namespace Hangfire.Redis.StackExchange.Tests
 {
     public class RedisConnectionFacts : IClassFixture<RedisFixture>
     {
-        private static RedisFixture Redis;
-        public RedisConnectionFacts(RedisFixture _Redis)
+        private readonly RedisFixture Redis;
+        public RedisConnectionFacts(RedisFixture Redis) 
         {
-            Redis = _Redis;
+            this.Redis = Redis;
         }
 
         [Fact, CleanRedis]
