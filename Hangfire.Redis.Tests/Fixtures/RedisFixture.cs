@@ -22,11 +22,11 @@ namespace Hangfire.Redis.StackExchange.Tests
             var rnd = new Random();
             Port = (rnd.Next(10000) + 6379).ToString();
 
+            string assemblyFile = new DirectoryInfo(new Uri(Assembly.GetExecutingAssembly().CodeBase).AbsolutePath).Parent.FullName;
+
             RedisServer = new Process();
-            RedisServer.StartInfo.FileName = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\redis-server.exe";
+            RedisServer.StartInfo.FileName = assemblyFile + "//redis-server.exe";
             RedisServer.StartInfo.Arguments = "--maxheap 8000000 --port " + Port;
-            RedisServer.StartInfo.CreateNoWindow = true;
-            RedisServer.StartInfo.RedirectStandardOutput = true;
             RedisServer.StartInfo.UseShellExecute = false;
             RedisServer.Start();
 
@@ -46,8 +46,8 @@ namespace Hangfire.Redis.StackExchange.Tests
     }
 
     //Unfortunately, Fixture Collections do not work with my test runner. Need to use ClassFixtures
-    //[CollectionDefinition("Redis")]
-    //public class RedisCollection : ICollectionFixture<RedisFixture>
-    //{
-    //}
+    [CollectionDefinition("Redis")]
+    public class RedisCollection : ICollectionFixture<RedisFixture>
+    {
+    }
 }

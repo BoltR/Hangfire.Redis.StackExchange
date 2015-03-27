@@ -6,7 +6,8 @@ using Xunit;
 
 namespace Hangfire.Redis.StackExchange.Tests
 {
-	public class FetchedJobsWatcherFacts : IClassFixture<RedisFixture>
+	[Collection("Redis")]
+	public class FetchedJobsWatcherFacts
 	{
 
 		private RedisFixture Redis;

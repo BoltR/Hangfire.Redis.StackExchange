@@ -15,7 +15,7 @@
     <FileAlignment>512</FileAlignment>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\..\</SolutionDir>
     <RestorePackages>true</RestorePackages>
-    <NuGetPackageImportStamp>37a30d39</NuGetPackageImportStamp>
+    <NuGetPackageImportStamp>ee65badd</NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -90,7 +90,10 @@
     <Compile Include="Utils\CleanRedisAttribute.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="FindToolDirectoryFromPackages.props" />
+    <None Include="app.config" />
+    <None Include="FindToolDirectoryFromPackages.props">
+      <SubType>Designer</SubType>
+    </None>
     <None Include="packages.config">
       <SubType>Designer</SubType>
     </None>
@@ -120,13 +123,13 @@
   </Target>
   -->
   <Target Name="AfterBuild">
-    <FindToolDirectoryFromPackages PackagesDir="$(SolutionDir)\packages" FileToLocate="redis-server.exe">
+    <FindToolDirectoryFromPackages PackagesDir="$(SolutionDir)packages" FileToLocate="redis-server.exe">
       <Output TaskParameter="Path" PropertyName="RedisServer" />
     </FindToolDirectoryFromPackages>
     <ItemGroup>
-      <Files Include="$(RedisServer)\**\redis-server.exe" />
+      <Redis Include="$(RedisServer)" />
     </ItemGroup>
     <MakeDir Directories="$(OutputPath)" Condition="!Exists('$(OutputPath)')" />
-    <Copy SourceFiles="@(Files)" DestinationFolder="$(OutputPath)" />
+    <Copy SourceFiles="@(Redis)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
   </Target>
 </Project>

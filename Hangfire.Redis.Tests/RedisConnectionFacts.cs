@@ -7,7 +7,8 @@ using Xunit;
 
 namespace Hangfire.Redis.StackExchange.Tests
 {
-    public class RedisConnectionFacts : IClassFixture<RedisFixture>
+    [Collection("Redis")]
+    public class RedisConnectionFacts
     {
         private readonly RedisFixture Redis;
         public RedisConnectionFacts(RedisFixture Redis) 

@@ -11,10 +11,7 @@
       <Using Namespace="System.Linq" />
       <Code Type="Fragment" Language="cs">
         <![CDATA[
-          Path = System.IO.Directory.EnumerateFiles(PackagesDir, FileToLocate, SearchOption.AllDirectories)
-                    .OrderBy(k => System.IO.Path.GetDirectoryName(k))
-                    .Select(k => System.IO.Path.GetDirectoryName(k))
-                      .FirstOrDefault();
+          Path = System.IO.Directory.EnumerateFiles(PackagesDir, FileToLocate, SearchOption.AllDirectories).FirstOrDefault();
         ]]>
       </Code>
     </Task>

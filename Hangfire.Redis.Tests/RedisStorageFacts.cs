@@ -3,22 +3,26 @@ using Xunit;
 
 namespace Hangfire.Redis.StackExchange.Tests
 {
+    [Collection("Redis")]
     public class RedisStorageFacts
     {
+
+        private readonly RedisFixture Redis;
+        public RedisStorageFacts(RedisFixture Redis) 
+        {
+            this.Redis = Redis;
+        } 
+
         [Fact]
         public void DefaultCtor_InitializesCorrectDefaultValues()
         {
-            var storage = new RedisStorage("localhost:6379", 0); //TODO: Revert to empty constructor
-
-            Assert.Equal(0, storage.Db);
+            Assert.Equal(1, Redis.Storage.Db);
         }
 
         [Fact]
         public void GetStateHandlers_ReturnsAllHandlers()
         {
-            var storage = new RedisStorage("localhost:6379", 0);
-
-            var handlers = storage.GetStateHandlers();
+            var handlers = Redis.Storage.GetStateHandlers();
 
             var handlerTypes = handlers.Select(x => x.GetType()).ToArray();
             Assert.Contains(typeof(FailedStateHandler), handlerTypes);

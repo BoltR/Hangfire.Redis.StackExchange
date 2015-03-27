@@ -9,7 +9,8 @@ using Xunit;
 
 namespace Hangfire.Redis.StackExchange.Tests
 {
-    public class RedisWriteOnlyTransactionFacts : IClassFixture<RedisFixture>
+    [Collection("Redis")]
+    public class RedisWriteOnlyTransactionFacts
     {
         private static RedisFixture Redis;
 
