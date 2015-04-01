@@ -22,6 +22,7 @@ using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace Hangfire.Redis.StackExchange
 {
@@ -38,6 +39,8 @@ namespace Hangfire.Redis.StackExchange
         public TimeSpan InvisibilityTimeout { get; set; }
 
         public int Db { get; private set; }
+
+        private static Regex reg = new Regex("^Unspecified/", RegexOptions.Compiled);
 
         public RedisStorage() : this(String.Format("{0}:{1}", DefaultHost, DefaultPort))
         {}
@@ -97,12 +100,12 @@ namespace Hangfire.Redis.StackExchange
 
         public override void WriteOptionsToLog(ILog logger)
         {
-            logger.Info("Using the following options for Redis job storage:");
+            logger.Info("Using the following options for Redis job storage:" + ServerPool.Configuration.ToString());
         }
 
         public override string ToString()
         {
-            return String.Format("redis://{0}/{1}", String.Join(",", ServerPool.GetEndPoints().Select(x => x.ToString())), Db);
+            return String.Format("redis://{0}/{1}", String.Join(",", ServerPool.GetEndPoints().Select(x => reg.Replace(x.ToString(), String.Empty))), Db);
         }
 
         internal static string GetRedisKey(string key)
