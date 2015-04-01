@@ -27,8 +27,6 @@ namespace Hangfire.Redis.StackExchange
 
         private const string Channel = "Hangfire:announce";
 
-        public RedisSubscribe() { }
-
         public RedisSubscribe(ISubscriber Subscriber)
         {
             _Subscriber = Subscriber;

@@ -1,9 +1,7 @@
-﻿using Hangfire.Redis.StackExchange;
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
-using System.Threading;
 using Xunit;
 
 namespace Hangfire.Redis.StackExchange.Tests
@@ -45,7 +43,6 @@ namespace Hangfire.Redis.StackExchange.Tests
         }
     }
 
-    //Unfortunately, Fixture Collections do not work with my test runner. Need to use ClassFixtures
     [CollectionDefinition("Redis")]
     public class RedisCollection : ICollectionFixture<RedisFixture>
     {
