@@ -18,7 +18,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             ConnectionValue = Substitute.For<IStorageConnection>();
 
             _context = new Lazy<StateContext>(
-                () => new StateContext(JobIdValue, JobValue, CreatedAtValue, ConnectionValue));
+                () => new StateContext(JobIdValue, JobValue, CreatedAtValue));
         }
 
         public string JobIdValue { get; set; }

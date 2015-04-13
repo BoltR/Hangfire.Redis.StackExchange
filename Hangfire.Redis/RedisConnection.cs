@@ -27,7 +27,7 @@ using System.Threading.Tasks;
 
 namespace Hangfire.Redis.StackExchange
 {
-    internal class RedisConnection : IStorageConnection
+    internal class RedisConnection : JobStorageConnection
     {
         private static readonly TimeSpan FetchTimeout = TimeSpan.FromSeconds(1);
 
@@ -39,16 +39,16 @@ namespace Hangfire.Redis.StackExchange
 
         public IDatabase Redis { get; private set; }
         public RedisSubscribe Sub {get; private set;}
-        public void Dispose()
+        public override void Dispose()
         {
         }
 
-        public IWriteOnlyTransaction CreateWriteTransaction()
+        public override IWriteOnlyTransaction CreateWriteTransaction()
         {
             return new RedisWriteOnlyTransaction(Redis.CreateTransaction(), Sub);
         }
 
-        public IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
+        public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
         {
             string jobId;
             string queueName;
@@ -98,12 +98,12 @@ namespace Hangfire.Redis.StackExchange
             return new RedisFetchedJob(Redis, jobId, queueName);
         }
 
-        public IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
+        public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
         {
             return new RedisLock(Redis, RedisStorage.Prefix + resource, timeout);
         }
 
-        public string CreateExpiredJob(
+        public override string CreateExpiredJob(
             Job job,
             IDictionary<string, string> parameters, 
             DateTime createdAt,
@@ -137,7 +137,7 @@ namespace Hangfire.Redis.StackExchange
             return jobId;
         }
 
-        public JobData GetJobData(string id)
+        public override JobData GetJobData(string id)
         {
             var storedData = Redis.HashGetAll(String.Format(RedisStorage.Prefix + "job:{0}", id)).ToStringDictionary();
 
@@ -193,7 +193,7 @@ namespace Hangfire.Redis.StackExchange
             };
         }
 
-        public StateData GetStateData(string jobId)
+        public override StateData GetStateData(string jobId)
         {
             if (jobId == null) throw new ArgumentNullException("jobId");
             var entries = Redis.HashGetAll(RedisStorage.Prefix + String.Format("job:{0}:state", jobId)).ToStringDictionary();
@@ -212,17 +212,27 @@ namespace Hangfire.Redis.StackExchange
             };
         }
 
-        public void SetJobParameter(string id, string name, string value)
+        public override void SetJobParameter(string id, string name, string value)
         {
             Redis.HashSet(String.Format(RedisStorage.Prefix + "job:{0}", id), name, value);
         }
 
-        public string GetJobParameter(string id, string name)
+        public override string GetJobParameter(string id, string name)
         {
             return Redis.HashGet(String.Format(RedisStorage.Prefix + "job:{0}", id), name);
         }
 
-        public HashSet<string> GetAllItemsFromSet(string key)
+        public override long GetCounter(string key)
+        {
+            return Convert.ToInt64(Redis.StringGet(RedisStorage.GetRedisKey(key)));
+        }
+
+        public override long GetSetCount(string key)
+        {
+            return Redis.SortedSetLength(RedisStorage.GetRedisKey(key));
+        }
+
+        public override HashSet<string> GetAllItemsFromSet(string key)
         {
             if (key == null) throw new ArgumentNullException("key");
 
@@ -235,12 +245,27 @@ namespace Hangfire.Redis.StackExchange
             return set;
         }
 
-        public string GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore)
+        public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
         {
-            return Redis.SortedSetRangeByScore(RedisStorage.Prefix + key, fromScore, toScore, take: 1).FirstOrDefault();
+            return Redis.SortedSetRangeByRank(RedisStorage.GetRedisKey(key), startingFrom, endingAt).ToStringList();
         }
 
-        public void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
+        public override string GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore)
+        {
+            return Redis.SortedSetRangeByScore(RedisStorage.GetRedisKey(key), fromScore, toScore, take: 1).FirstOrDefault();
+        }
+
+        public override TimeSpan GetSetTtl(string key)
+        {
+            return Redis.KeyTimeToLive(RedisStorage.GetRedisKey(key)) ?? TimeSpan.FromSeconds(-1);
+        }
+
+        public override long GetHashCount(string key)
+        {
+            return Redis.HashLength(RedisStorage.GetRedisKey(key));
+        }
+
+        public override void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
         {
             if (key == null) throw new ArgumentNullException("key");
             if (keyValuePairs == null) throw new ArgumentNullException("keyValuePairs");
@@ -248,7 +273,7 @@ namespace Hangfire.Redis.StackExchange
             Redis.HashSet(RedisStorage.GetRedisKey(key), keyValuePairs.ToHashEntryArray());
         }
 
-        public Dictionary<string, string> GetAllEntriesFromHash(string key)
+        public override Dictionary<string, string> GetAllEntriesFromHash(string key)
         {
             if (key == null) throw new ArgumentNullException("key");
 
@@ -257,7 +282,37 @@ namespace Hangfire.Redis.StackExchange
             return result.Count != 0 ? result : null;
         }
 
-        public void AnnounceServer(string serverId, ServerContext context)
+        public override TimeSpan GetHashTtl(string key)
+        {
+            return Redis.KeyTimeToLive(RedisStorage.GetRedisKey(key)) ?? TimeSpan.FromSeconds(-1);
+        }
+
+        public override string GetValueFromHash(string key, string name)
+        {
+            return Redis.HashGet(RedisStorage.GetRedisKey(key), name);
+        }
+
+        public override long GetListCount(string key)
+        {
+            return Redis.ListLength(RedisStorage.GetRedisKey(key));
+        }
+
+        public override TimeSpan GetListTtl(string key)
+        {
+            return Redis.KeyTimeToLive(RedisStorage.GetRedisKey(key)) ?? TimeSpan.FromSeconds(-1);
+        }
+
+        public override List<string> GetRangeFromList(string key, int startingFrom, int endingAt)
+        {
+            return Redis.ListRange(RedisStorage.GetRedisKey(key), startingFrom, endingAt).ToStringList();
+        }
+
+        public override List<string> GetAllItemsFromList(string key)
+        {
+            return Redis.ListRange(RedisStorage.GetRedisKey(key)).ToStringList();
+        }
+
+        public override void AnnounceServer(string serverId, ServerContext context)
         {
 
             var transaction = Redis.CreateTransaction();
@@ -280,7 +335,7 @@ namespace Hangfire.Redis.StackExchange
             transaction.Execute();
         }
 
-        public void RemoveServer(string serverId)
+        public override void RemoveServer(string serverId)
         {
             RemoveServer(Redis, serverId);
         }
@@ -294,12 +349,12 @@ namespace Hangfire.Redis.StackExchange
             transaction.Execute();
         }
 
-        public void Heartbeat(string serverId)
+        public override void Heartbeat(string serverId)
         {
             Redis.HashSet(String.Format(RedisStorage.Prefix + "server:{0}", serverId), "Heartbeat", JobHelper.SerializeDateTime(DateTime.UtcNow));
         }
 
-        public int RemoveTimedOutServers(TimeSpan timeOut)
+        public override int RemoveTimedOutServers(TimeSpan timeOut)
         {
             var serverNames = Redis.SetMembers(RedisStorage.Prefix + "servers");
 

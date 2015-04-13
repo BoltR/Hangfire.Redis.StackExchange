@@ -15,6 +15,7 @@
 // License along with Hangfire.Redis.StackExchange. If not, see <http://www.gnu.org/licenses/>.
 
 using StackExchange.Redis;
+using System;
 
 namespace Hangfire.Redis.StackExchange
 {
@@ -25,6 +26,7 @@ namespace Hangfire.Redis.StackExchange
         /// available at localhost:6379 and use the '0' db to store 
         /// the data.
         /// </summary>
+        [Obsolete("Please use `GlobalConfiguration.UseSqlServerStorage` instead. Will be removed in version 2.0.0.")]
         public static RedisStorage UseRedisStorage(
             this IBootstrapperConfiguration configuration)
         {
@@ -40,6 +42,7 @@ namespace Hangfire.Redis.StackExchange
         /// </summary>
         /// <param name="configuration">Configuration</param>
         /// <param name="OptionString">StackExchange.Redis option string</param>
+        [Obsolete("Please use `GlobalConfiguration.UseSqlServerStorage` instead. Will be removed in version 2.0.0.")]
         public static RedisStorage UseRedisStorage(
             this IBootstrapperConfiguration configuration,
             string OptionString)
@@ -59,6 +62,7 @@ namespace Hangfire.Redis.StackExchange
         /// <param name="OptionString">StackExchange.Redis option string</param>
         /// <param name="db">Database number to store the data, for example '0'</param>
         /// <returns></returns>
+        [Obsolete("Please use `GlobalConfiguration.UseSqlServerStorage` instead. Will be removed in version 2.0.0.")]
         public static RedisStorage UseRedisStorage(
             this IBootstrapperConfiguration configuration,
             string OptionString,
@@ -78,6 +82,7 @@ namespace Hangfire.Redis.StackExchange
         /// <param name="configuration">Configuration</param>
         /// <param name="Options">StackExchange ConfigurationOptions</param>
         /// <returns></returns>
+        [Obsolete("Please use `GlobalConfiguration.UseSqlServerStorage` instead. Will be removed in version 2.0.0.")]
         public static RedisStorage UseRedisStorage(
             this IBootstrapperConfiguration configuration,
             ConfigurationOptions Options)
@@ -97,6 +102,7 @@ namespace Hangfire.Redis.StackExchange
         /// <param name="Options">StackExchange ConfigurationOptions</param>
         /// <param name="db">Database number to store the data, for example '0'</param>
         /// <returns></returns>
+        [Obsolete("Please use `GlobalConfiguration.UseSqlServerStorage` instead. Will be removed in version 2.0.0.")]
         public static RedisStorage UseRedisStorage(
             this IBootstrapperConfiguration configuration,
             ConfigurationOptions Options,

@@ -1,6 +1,7 @@
 ﻿using System;
 using Hangfire.States;
 using NSubstitute;
+using System.Linq;
 
 namespace Hangfire.Redis.StackExchange.Tests
 {
@@ -18,7 +19,8 @@ namespace Hangfire.Redis.StackExchange.Tests
                 () => new ApplyStateContext(
                     StateContextValue.Object,
                     NewStateValue,
-                    OldStateValue));
+                    OldStateValue,
+                    Enumerable.Empty<IState>()));
         }
 
         public StateContextMock StateContextValue { get; set; }

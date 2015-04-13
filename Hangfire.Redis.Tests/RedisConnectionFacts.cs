@@ -194,14 +194,206 @@ namespace Hangfire.Redis.StackExchange.Tests
             });
         }
 
-        private void UseConnections(Action<IDatabase, IStorageConnection> action)
+        [Fact, CleanRedis]
+        public void GetCounter()
         {
-            action(Redis.Storage.GetDatabase(), Redis.Storage.GetConnection());
+            UseConnections((redis, connection) =>
+            {
+                redis.StringIncrement("hangfire:counter");
+                Assert.Equal(1, connection.GetCounter("counter"));
+
+                redis.StringIncrement("hangfire:counter");
+                Assert.Equal(2, connection.GetCounter("counter"));
+            });
         }
 
-        private void UseConnection(Action<IStorageConnection> action)
+        [Fact, CleanRedis]
+        public void GetSetCount()
         {
-            action(Redis.Storage.GetConnection());
+            UseConnections((redis, connection) =>
+            {
+                redis.SortedSetAdd("hangfire:some-set", new SortedSetEntry[]
+                {
+                    new SortedSetEntry("Key1", 0.2),
+                    new SortedSetEntry("Key2", 0.3)
+                });
+
+                Assert.Equal(2, connection.GetSetCount("some-set"));
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetFirstByLowestScoreFromSet()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.SortedSetAdd("hangfire:some-set", new SortedSetEntry[]
+                {
+                    new SortedSetEntry("Key1", 0.2),
+                    new SortedSetEntry("Key2", 0.3),
+                    new SortedSetEntry("Key3", 0.7),
+                    new SortedSetEntry("Key4", 0.4),
+                    new SortedSetEntry("Key5", 0.5)
+                });
+
+                Assert.Equal("Key2", connection.GetFirstByLowestScoreFromSet("some-set", 0.25, 1));
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetRangeFromSet()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.SortedSetAdd("hangfire:some-set", new SortedSetEntry[]
+                {
+                    new SortedSetEntry("Key1", 0.2),
+                    new SortedSetEntry("Key2", 0.3),
+                    new SortedSetEntry("Key3", 0.7),
+                    new SortedSetEntry("Key4", 0.4),
+                    new SortedSetEntry("Key5", 0.5)
+                });
+                
+                var set = connection.GetRangeFromSet("some-set", 1, 3);
+                Assert.Equal(3, set.Count);
+                Assert.Equal("Key2", set[0]);
+                Assert.Equal("Key5", set[2]);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetSetTtl()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.SortedSetAdd("hangfire:some-set", new SortedSetEntry[]
+                {
+                    new SortedSetEntry("Key1", 0.2),
+                    new SortedSetEntry("Key2", 0.3)
+                });
+
+                Assert.Equal(TimeSpan.FromSeconds(-1), connection.GetSetTtl("some-set"));
+
+                redis.KeyExpire("hangfire:some-set", DateTime.UtcNow.AddMinutes(1));
+                Assert.Equal(0, (int)(TimeSpan.FromMinutes(1) - connection.GetSetTtl("some-set")).TotalSeconds);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetHashCount()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.HashSet("hangfire:some-hash", new HashEntry[]
+                {
+                    new HashEntry("Key1", "Value1"),
+                    new HashEntry("Key2", "Value2")
+                });
+
+                Assert.Equal(2, connection.GetHashCount("some-hash"));
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetValueFromHash()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.HashSet("hangfire:some-hash", new HashEntry[]
+                {
+                    new HashEntry("Key1", "Value1"),
+                    new HashEntry("Key2", "Value2")
+                });
+
+                Assert.Equal("Value2", connection.GetValueFromHash("some-hash", "Key2"));
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetHashTtl()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.HashSet("hangfire:some-hash", new HashEntry[]
+                {
+                    new HashEntry("Key1", "Value1"),
+                    new HashEntry("Key2", "Value2")
+                });
+
+                Assert.Equal(TimeSpan.FromSeconds(-1), connection.GetHashTtl("some-hash"));
+
+                redis.KeyExpire("hangfire:some-hash", DateTime.UtcNow.AddMinutes(1));
+                Assert.Equal(0, (int)(TimeSpan.FromMinutes(1) - connection.GetHashTtl("some-hash")).TotalSeconds);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetListCount()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.ListRightPush("hangfire:some-list", "Value");
+                redis.ListRightPush("hangfire:some-list", "Value2");
+
+                Assert.Equal(2, connection.GetListCount("some-list"));
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetRangeFromList()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.ListRightPush("hangfire:some-list", "Value");
+                redis.ListRightPush("hangfire:some-list", "Value2");
+                redis.ListRightPush("hangfire:some-list", "Value3");
+                redis.ListRightPush("hangfire:some-list", "Value4");
+
+                var list = connection.GetRangeFromList("some-list", 1, 2);
+
+
+                Assert.Equal(2, list.Count);
+                Assert.Equal("Value3", list[1]);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetAllItemsFromList()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.ListRightPush("hangfire:some-list", "Value");
+                redis.ListRightPush("hangfire:some-list", "Value2");
+                redis.ListRightPush("hangfire:some-list", "Value3");
+                redis.ListRightPush("hangfire:some-list", "Value4");
+
+                var list = connection.GetAllItemsFromList("some-list");
+
+                Assert.Equal(4, list.Count);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetListTtl()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.ListLeftPush("hangfire:some-list", "Value");
+                Assert.Equal(TimeSpan.FromSeconds(-1), connection.GetListTtl("some-list"));
+
+                redis.KeyExpire("hangfire:some-list", DateTime.UtcNow.AddMinutes(1));
+                Assert.Equal(0, (int)(TimeSpan.FromMinutes(1) - connection.GetListTtl("some-list")).TotalSeconds);
+            });
+        }
+
+        private void UseConnections(Action<IDatabase, JobStorageConnection> action)
+        {
+            action(Redis.Storage.GetDatabase(), Redis.Storage.GetConnection() as JobStorageConnection);
+        }
+
+        private void UseConnection(Action<JobStorageConnection> action)
+        {
+            action(Redis.Storage.GetConnection() as JobStorageConnection);
         }
     }
 }

@@ -2,9 +2,9 @@ using System;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyProduct("Hangfire")]
-[assembly: AssemblyCompany("Sergey Odinokov")]
-[assembly: AssemblyCopyright("Copyright © 2013-2014 Sergey Odinokov")]
+[assembly: AssemblyProduct("Hangfire.Redis.StackExchange")]
+[assembly: AssemblyCompany("Daniel Chernis")]
+[assembly: AssemblyCopyright("Copyright © 2015 Daniel Chernis")]
 [assembly: AssemblyCulture("")]
 
 [assembly: ComVisible(false)]
@@ -12,4 +12,4 @@ using System.Runtime.InteropServices;
 
 [assembly: AssemblyVersion("1.1.1")]
 [assembly: AssemblyInformationalVersion("1.1.1")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
