@@ -1,12 +1,11 @@
-﻿using Hangfire.Annotations;
-using StackExchange.Redis;
+﻿using StackExchange.Redis;
 using System;
 
 namespace Hangfire.Redis.StackExchange
 {
     public static class RedisStorageExtensions
     {
-        public static IGlobalConfiguration<RedisStorage> UseRedisStorage([NotNull] this IGlobalConfiguration configuration, [NotNull] string OptionString)
+        public static IGlobalConfiguration<RedisStorage> UseRedisStorage(this IGlobalConfiguration configuration, string OptionString)
         {
             if (configuration == null) throw new ArgumentNullException("configuration");
             if (OptionString == null) throw new ArgumentNullException("OptionString");
@@ -14,7 +13,7 @@ namespace Hangfire.Redis.StackExchange
             return configuration.UseStorage(storage);
         }
 
-        public static IGlobalConfiguration<RedisStorage> UseRedisStorage([NotNull] this IGlobalConfiguration configuration, [NotNull] string OptionString, int db)
+        public static IGlobalConfiguration<RedisStorage> UseRedisStorage(this IGlobalConfiguration configuration, string OptionString, int db)
         {
             if (configuration == null) throw new ArgumentNullException("configuration");
             if (OptionString == null) throw new ArgumentNullException("OptionString");
@@ -22,7 +21,7 @@ namespace Hangfire.Redis.StackExchange
             return configuration.UseStorage(storage);
         }
 
-        public static IGlobalConfiguration<RedisStorage> UseRedisStorage([NotNull] this IGlobalConfiguration configuration, [NotNull] ConfigurationOptions Options)
+        public static IGlobalConfiguration<RedisStorage> UseRedisStorage(this IGlobalConfiguration configuration, ConfigurationOptions Options)
         {
             if (configuration == null) throw new ArgumentNullException("configuration");
             if (Options == null) throw new ArgumentNullException("Options");
@@ -30,7 +29,7 @@ namespace Hangfire.Redis.StackExchange
             return configuration.UseStorage(storage);
         }
 
-        public static IGlobalConfiguration<RedisStorage> UseRedisStorage([NotNull] this IGlobalConfiguration configuration, [NotNull] ConfigurationOptions Options, int db)
+        public static IGlobalConfiguration<RedisStorage> UseRedisStorage(this IGlobalConfiguration configuration, ConfigurationOptions Options, int db)
         {
             if (configuration == null) throw new ArgumentNullException("configuration");
             if (Options == null) throw new ArgumentNullException("Options");
