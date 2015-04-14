@@ -64,7 +64,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             Assert.NotNull(JobWatcher);
         }
 
-        [Fact]
+        [Fact, CleanRedis]
         public void GetMonitoringAPI()
         {
             var api = Redis.Storage.GetMonitoringApi();

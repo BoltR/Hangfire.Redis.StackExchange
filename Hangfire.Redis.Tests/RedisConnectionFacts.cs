@@ -1,4 +1,5 @@
-﻿using Hangfire.Storage;
+﻿using Hangfire.Common;
+using Hangfire.Storage;
 using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
@@ -14,6 +15,15 @@ namespace Hangfire.Redis.StackExchange.Tests
         public RedisConnectionFacts(RedisFixture Redis) 
         {
             this.Redis = Redis;
+        }
+
+        [Fact, CleanRedis]
+        public void AcquireDistributedLock_LockCollision()
+        {
+            using (var lock1 = Redis.Storage.GetConnection().AcquireDistributedLock("some-hash", TimeSpan.FromMinutes(1)))
+            {
+                Assert.Throws<AccessViolationException>(() => Redis.Storage.GetConnection().AcquireDistributedLock("some-hash", TimeSpan.FromMinutes(1)));
+            }
         }
 
         [Fact, CleanRedis]
@@ -386,6 +396,77 @@ namespace Hangfire.Redis.StackExchange.Tests
             });
         }
 
+        [Fact, CleanRedis]
+        public void SetGetJobParameter()
+        {
+            UseConnections((redis, connection) =>
+            {
+                connection.SetJobParameter("1", "data", "testvalue");
+                Assert.Equal("testvalue", connection.GetJobParameter("1", "data"));
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void Heartbeat()
+        {
+            UseConnections((redis, connection) =>
+            {
+                connection.Heartbeat("1");
+                var pong = JobHelper.DeserializeDateTime(redis.HashGet("hangfire:server:1", "Heartbeat"));
+                Assert.Equal(0, (int)(pong - DateTime.UtcNow).TotalSeconds);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void AnnounceServer()
+        {
+            UseConnections((redis, connection) =>
+            {
+                var server = new Server.ServerContext();
+                server.Queues = new string[1] {"queue1"};
+                server.WorkerCount = 5;
+                connection.AnnounceServer("1", server);
+
+                Assert.Equal(1, redis.SetLength("hangfire:servers"));
+                Assert.Equal(1, redis.ListLength("hangfire:server:1:queues"));
+                Assert.Equal("5", redis.HashGet("hangfire:server:1", "WorkerCount"));
+                var pong = JobHelper.DeserializeDateTime(redis.HashGet("hangfire:server:1", "StartedAt"));
+                Assert.Equal(0, (int)(pong - DateTime.UtcNow).TotalSeconds);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void RemoveServer()
+        {
+            UseConnections((redis, connection) =>
+            {
+                var server = new Server.ServerContext();
+                server.Queues = new string[1] { "queue1" };
+                server.WorkerCount = 5;
+                connection.AnnounceServer("1", server);
+                connection.RemoveServer("1");
+                Assert.Equal(0, redis.SetLength("hangfire:servers"));
+                Assert.Equal(0, redis.ListLength("hangfire:server:1:queues"));
+                Assert.Equal(RedisValue.Null, redis.HashGet("hangfire:server:1", "WorkerCount"));
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void RemoveTimedOut()
+        {
+            UseConnections((redis, connection) =>
+            {
+                redis.SetAdd("hangfire:servers", "1");
+                redis.HashSet("hangfire:server:1", "Heartbeat", JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-1)));
+                redis.HashSet("hangfire:server:1", "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-2)));
+                redis.SetAdd("hangfire:servers", "2");
+                redis.HashSet("hangfire:server:2", "Heartbeat", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)));
+                redis.HashSet("hangfire:server:2", "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-2)));
+                connection.RemoveTimedOutServers(TimeSpan.FromHours(1));
+                Assert.Equal(1, redis.SetLength("hangfire:servers"));
+            });
+        }
+
         private void UseConnections(Action<IDatabase, JobStorageConnection> action)
         {
             action(Redis.Storage.GetDatabase(), Redis.Storage.GetConnection() as JobStorageConnection);
@@ -395,5 +476,6 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             action(Redis.Storage.GetConnection() as JobStorageConnection);
         }
+
     }
 }
