@@ -4,6 +4,7 @@ using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Xunit;
 
 namespace Hangfire.Redis.StackExchange.Tests
@@ -24,6 +25,136 @@ namespace Hangfire.Redis.StackExchange.Tests
             {
                 Assert.Throws<AccessViolationException>(() => Redis.Storage.GetConnection().AcquireDistributedLock("some-hash", TimeSpan.FromMinutes(1)));
             }
+        }
+
+        [Fact, CleanRedis]
+        public void CreateTransaction_AndCommit()
+        {
+            UseConnections((redis, connection) =>
+            {
+                var transaction = connection.CreateWriteTransaction();
+                transaction.AddToSet("some-set", "test");
+                transaction.Commit();
+                var setitems = redis.SortedSetScan("hangfire:some-set");
+                Assert.Equal(1, setitems.Count());
+                Assert.Equal("test", setitems.First().Element);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void FetchNextJob_JobWaiting()
+        {
+            var cancel = new CancellationTokenSource();
+            IFetchedJob Job = null;
+            UseConnections((redis, connection) =>
+            {
+                redis.ListRightPush("hangfire:queue:1", "job1");
+                var t = new Thread(() => Job = connection.FetchNextJob(new string[] { "1" }, cancel.Token));
+                t.IsBackground = true;
+                t.Start();
+                t.Join();
+
+                Assert.Equal("job1", Job.JobId);
+            });
+
+        }
+
+        [Fact, CleanRedis]
+        public void FetchNextJob_WithPub()
+        {
+            var cancel = new CancellationTokenSource();
+            IFetchedJob Job = null;
+            UseConnections((redis, connection) =>
+            {
+                var t = new Thread(() => Job = connection.FetchNextJob(new string[] { "1" }, cancel.Token));
+                t.IsBackground = true;
+                t.Start();
+                Thread.Sleep(10); //Enough time for Redis to respond that there are no jobs in queue, and the thread to start waiting
+                redis.ListRightPush("hangfire:queue:1", "job2");
+                redis.Publish("Hangfire:announce", "1"); //Pub to wake up thread
+                t.Join();
+
+                Assert.Equal("job2", Job.JobId);
+            });
+
+        }
+
+
+        [Fact, CleanRedis]
+        public void FetchNextJob_NoJobs()
+        {
+            var cancel = new CancellationTokenSource();
+            bool Threw = false;
+
+            UseConnection(connection =>
+            {
+                var t = new Thread(() => 
+                {
+                    try { connection.FetchNextJob(new string[] { "1" }, cancel.Token); }
+                    catch (OperationCanceledException) { Threw = true; }
+                });
+                t.IsBackground = true;
+                t.Start();
+                Thread.Sleep(10); //Enough time for Redis to respond that there are no jobs in queue, and the thread to start waiting
+                cancel.Cancel();
+                t.Join();
+                Assert.True(Threw);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void CreateExpiredJob()
+        {
+            UseConnections((redis, connection) =>
+            {
+                Type type = typeof(Console);
+                var method = type.GetMethods().Where(x => x.Name == "WriteLine").FirstOrDefault();
+                var job = new Job(type, method);
+                var parameters = new Dictionary<string, string>() { {"Key1", "Value1" } };
+                var jobid = connection.CreateExpiredJob(job, parameters, DateTime.UtcNow, TimeSpan.FromMinutes(5));
+
+                var ReturnedJob = redis.HashGetAll("hangfire:job:" + jobid).ToStringDictionary(); ;
+                Assert.Equal("WriteLine", ReturnedJob["Method"]);
+                var CreatedAt = JobHelper.DeserializeDateTime(ReturnedJob["CreatedAt"]);
+                Assert.Equal(0, (int)(CreatedAt - DateTime.UtcNow).TotalSeconds);
+                Assert.Equal("Value1", ReturnedJob["Key1"]);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetJobData()
+        {
+            UseConnections((redis, connection) =>
+            {
+                Type type = typeof(Console);
+                var method = type.GetMethods().Where(x => x.Name == "WriteLine").FirstOrDefault();
+                var job = new Job(type, method);
+                var parameters = new Dictionary<string, string>();
+                var jobid = connection.CreateExpiredJob(job, parameters, DateTime.UtcNow, TimeSpan.FromMinutes(5));
+
+                var ReturnedJob = connection.GetJobData(jobid);
+                Assert.Equal("WriteLine", ReturnedJob.Job.Method.Name);
+                Assert.Equal(0, (int)(ReturnedJob.CreatedAt - DateTime.UtcNow).TotalSeconds);
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void GetJobData_InvalidJobData()
+        {
+            UseConnections((redis, connection) =>
+            {
+                Type type = typeof(Console);
+                var method = type.GetMethods().Where(x => x.Name == "WriteLine").FirstOrDefault();
+                var job = new Job(type, method);
+                var parameters = new Dictionary<string, string>();
+                var jobid = connection.CreateExpiredJob(job, parameters, DateTime.UtcNow, TimeSpan.FromMinutes(5));
+
+                redis.HashSet("hangfire:job:" + jobid, "Method", "Invalid");
+
+                var ReturnedJob = connection.GetJobData(jobid);
+                Assert.IsType<JobLoadException>(ReturnedJob.LoadException);
+                Assert.NotNull(ReturnedJob.LoadException);
+            });
         }
 
         [Fact, CleanRedis]
