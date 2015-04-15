@@ -13,6 +13,13 @@ namespace Hangfire.Redis.StackExchange.Tests
 
         private readonly string IP = "localhost";
         private readonly string Port;
+        public string ServerInfo
+        {
+            get
+            {
+                return String.Format("{0}:{1}", IP, Port);
+            }
+        }
         private const int Db = 1;
 
         public RedisFixture()

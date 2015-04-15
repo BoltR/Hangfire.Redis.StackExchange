@@ -19,12 +19,42 @@ namespace Hangfire.Redis.StackExchange.Tests
         }
 
         [Fact, CleanRedis]
-        public void AcquireDistributedLock_LockCollision()
+        public void AcquireDistributedLock()
         {
-            using (var lock1 = Redis.Storage.GetConnection().AcquireDistributedLock("some-hash", TimeSpan.FromMinutes(1)))
+            UseConnections((redis, connection) =>
             {
-                Assert.Throws<AccessViolationException>(() => Redis.Storage.GetConnection().AcquireDistributedLock("some-hash", TimeSpan.FromMinutes(1)));
-            }
+                using (var lock1 = connection.AcquireDistributedLock("some-hash:lock", TimeSpan.FromMinutes(1)))
+                {
+                    using (var lock2 = Redis.Storage.GetConnection().AcquireDistributedLock("some-hash:lock", TimeSpan.FromMinutes(1)))
+                    {
+                        using (var lock3 = connection.AcquireDistributedLock("some-hash:lock", TimeSpan.FromMinutes(1)))
+                        {
+                            connection.SetRangeInHash("some-hash", new Dictionary<string, string>
+                            {
+                                { "Key1", "Value1" },
+                                { "Key2", "Value2" }
+                            });
+                        }
+                    }
+                }
+                Assert.Equal(2, redis.HashLength("hangfire:some-hash"));
+            });
+        }
+
+        [Fact, CleanRedis]
+        public void AcquireDistributedLock_MultiStorage()
+        {
+            UseConnection(connection =>
+            {
+                var SecondStorage = new RedisStorage(Redis.ServerInfo, Redis.Storage.Db);
+                using (var lock1 = connection.AcquireDistributedLock("some-hash:lock", TimeSpan.FromSeconds(1)))
+                {
+                    Assert.Throws<TimeoutException>(() =>
+                    {
+                        var lock2 = SecondStorage.GetConnection().AcquireDistributedLock("some-hash:lock", TimeSpan.FromMilliseconds(10));
+                    });
+                }
+            });
         }
 
         [Fact, CleanRedis]

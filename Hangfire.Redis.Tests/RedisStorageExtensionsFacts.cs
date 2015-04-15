@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Hangfire;
+﻿using StackExchange.Redis;
+using System;
 using Xunit;
-using StackExchange.Redis;
 
 namespace Hangfire.Redis.StackExchange.Tests
 {

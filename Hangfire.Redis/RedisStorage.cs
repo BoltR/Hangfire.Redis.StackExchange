@@ -29,6 +29,7 @@ namespace Hangfire.Redis.StackExchange
     public class RedisStorage : JobStorage, IDisposable
     {
         internal static readonly string Prefix = "hangfire:";
+        public readonly string StorageLockID = Guid.NewGuid().ToString();
         private const string ClientName = "Hangfire";
         private readonly ConnectionMultiplexer ServerPool;
         private readonly RedisSubscribe Sub;
@@ -82,7 +83,7 @@ namespace Hangfire.Redis.StackExchange
 
         public override IStorageConnection GetConnection()
         {
-            return new RedisConnection(ServerPool.GetDatabase(Db), Sub);
+            return new RedisConnection(ServerPool.GetDatabase(Db), Sub, StorageLockID);
         }
 
         public override IEnumerable<IServerComponent> GetComponents()

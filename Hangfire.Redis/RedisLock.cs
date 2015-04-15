@@ -15,29 +15,106 @@
 
 using StackExchange.Redis;
 using System;
+using System.Threading;
 
 namespace Hangfire.Redis.StackExchange
 {
     internal class RedisLock : IDisposable
     {
         private readonly string Key;
-        private readonly string Token;
         private readonly IDatabase Redis;
+        private readonly string LockID;
+        private readonly string LockCounter;
 
-        public RedisLock(IDatabase Redis, string Key, TimeSpan Timeout)
+        public RedisLock(IDatabase Redis, string Key, string LockID, TimeSpan Timeout)
         {
             this.Redis = Redis;
             this.Key = Key;
-            Token = Guid.NewGuid().ToString();
-            if (!Redis.LockTake(Key, Token, Timeout))
+            this.LockID = LockID;
+            LockCounter = Key + ":c";
+
+            int i = 1;
+            var LockTimeout = DateTime.UtcNow + Timeout;
+
+            while (DateTime.UtcNow < LockTimeout)
             {
-                throw new AccessViolationException("Unable to take lock on key");
+                if (TakeLock(Timeout))
+                {
+                    return;
+                }
+                else
+                {
+                    var LockToken = Redis.LockQuery(Key);
+                    if (LockToken.Equals(LockID))
+                    {
+                        if (ExtendLock(GetLockExpireTime(LockTimeout)))
+                        {
+                            return;
+                        }
+                    }
+                }
+                Thread.Sleep(GetSleepTimeout(i++));
             }
+            throw new TimeoutException("Failed to get lock within timeout period");
+        }
+
+        private bool TakeLock(TimeSpan Expiry)
+        {
+            var trans = Redis.CreateTransaction();
+            trans.AddCondition(Condition.KeyNotExists(Key));
+            trans.StringSetAsync(Key, LockID, Expiry);
+            trans.StringIncrementAsync(LockCounter);
+            return trans.Execute();
+        }
+
+        private bool ExtendLock(TimeSpan ExtendTo)
+        {
+            var trans = Redis.CreateTransaction();
+            trans.AddCondition(Condition.StringEqual(Key, LockID));
+            if (ExtendTo != TimeSpan.Zero)
+            {
+                trans.KeyExpireAsync(Key, ExtendTo);
+            }
+            trans.StringIncrementAsync(LockCounter);
+            return trans.Execute();
+        }
+
+        private TimeSpan GetLockExpireTime(DateTime NewExpireTime)
+        {
+            var CurrentExpireSpan = Redis.KeyTimeToLive(Key) ?? TimeSpan.Zero;
+            var NewExpireSpan = NewExpireTime - DateTime.UtcNow;
+            if (NewExpireSpan > CurrentExpireSpan)
+            {
+                return NewExpireSpan - CurrentExpireSpan;
+            }
+            else
+            {
+                return TimeSpan.Zero;
+            }
+
+        }
+
+        private static int Seed = Environment.TickCount;
+        private static ThreadLocal<Random> rnd = new ThreadLocal<Random>(() => new Random(Interlocked.Increment(ref Seed)));
+        private static int GetSleepTimeout(int i)
+        {
+            var log = Math.Log(i) * 2;
+            return rnd.Value.Next((int)Math.Pow(log, 3), (int)Math.Pow(log + 1, 3) + 10) + 1;
         }
 
         public void Dispose()
         {
-            Redis.LockRelease(Key, Token);
+            var trans = Redis.CreateTransaction();
+            trans.AddCondition(Condition.StringEqual(Key, LockID));
+            trans.StringDecrementAsync(LockCounter);
+            trans.Execute();
+
+            trans = Redis.CreateTransaction();
+            trans.AddCondition(Condition.StringEqual(Key, LockID));
+            trans.AddCondition(Condition.StringEqual(LockCounter, 0));
+            trans.KeyDeleteAsync(Key, CommandFlags.FireAndForget);
+            trans.KeyDeleteAsync(LockCounter, CommandFlags.FireAndForget);
+            trans.Execute();
         }
     }
 }

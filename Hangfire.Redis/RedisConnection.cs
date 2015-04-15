@@ -30,15 +30,16 @@ namespace Hangfire.Redis.StackExchange
     internal class RedisConnection : JobStorageConnection
     {
         private static readonly TimeSpan FetchTimeout = TimeSpan.FromSeconds(1);
-
-        public RedisConnection(IDatabase redis, RedisSubscribe sub)
+        public RedisConnection(IDatabase redis, RedisSubscribe sub, string StorageLockID)
         {
             Redis = redis;
             Sub = sub;
+            LockID = StorageLockID;
         }
 
         public IDatabase Redis { get; private set; }
         public RedisSubscribe Sub {get; private set;}
+        private string LockID;
         public override void Dispose()
         {
         }
@@ -100,7 +101,7 @@ namespace Hangfire.Redis.StackExchange
 
         public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
         {
-            return new RedisLock(Redis, RedisStorage.Prefix + resource, timeout);
+            return new RedisLock(Redis, RedisStorage.Prefix + resource, LockID, timeout);
         }
 
         public override string CreateExpiredJob(

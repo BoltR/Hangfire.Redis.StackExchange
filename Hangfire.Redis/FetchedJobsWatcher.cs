@@ -75,7 +75,7 @@ namespace Hangfire.Redis.StackExchange
             Logger.DebugFormat(
                 "Acquiring the lock for the fetched list of the '{0}' queue...", queue);
 
-            using (var Lock = new RedisLock(connection.Redis, String.Format(RedisStorage.Prefix + "queue:{0}:dequeued:lock", queue), _options.FetchedLockTimeout))
+            using (var Lock = new RedisLock(connection.Redis, String.Format(RedisStorage.Prefix + "queue:{0}:dequeued:lock", queue), Guid.NewGuid().ToString(), _options.FetchedLockTimeout))
             {
                 Logger.DebugFormat("Looking for timed out jobs in the '{0}' queue...", queue);
 
