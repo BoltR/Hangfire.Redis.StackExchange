@@ -11,6 +11,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 	{
 
 		private RedisFixture Redis;
+		private readonly string Prefix;
 		private static readonly TimeSpan InvisibilityTimeout = TimeSpan.FromSeconds(10);
 
 		private readonly CancellationTokenSource _cts;
@@ -18,6 +19,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 		public FetchedJobsWatcherFacts(RedisFixture Redis)
 		{
 			this.Redis = Redis;
+            Prefix = Redis.Storage.Prefix;
 			_cts = new CancellationTokenSource();
 			_cts.Cancel();
 		}
@@ -54,9 +56,9 @@ namespace Hangfire.Redis.StackExchange.Tests
 		{
 			var redis = Redis.Storage.GetDatabase();
 			// Arrange
-			redis.SetAdd("hangfire:queues", "my-queue");
-			redis.ListLeftPush("hangfire:queue:my-queue:dequeued", "my-job");
-			redis.HashSet("hangfire:job:my-job", "Fetched",
+			redis.SetAdd(Prefix + "queues", "my-queue");
+			redis.ListLeftPush(Prefix + "queue:my-queue:dequeued", "my-job");
+			redis.HashSet(Prefix + "job:my-job", "Fetched",
 				JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-1)));
 
 			var watcher = CreateWatcher();
@@ -65,12 +67,12 @@ namespace Hangfire.Redis.StackExchange.Tests
 			watcher.Execute(_cts.Token);
 
 			// Assert
-			Assert.Equal(0, redis.ListLength("hangfire:queue:my-queue:dequeued"));
+			Assert.Equal(0, redis.ListLength(Prefix + "queue:my-queue:dequeued"));
 
-			var listEntry = redis.ListLeftPop("hangfire:queue:my-queue");
+			var listEntry = redis.ListLeftPop(Prefix + "queue:my-queue");
 			Assert.Equal("my-job", listEntry);
 
-			var job = redis.HashGetAll("hangfire:job:my-job").ToDictionary(x => x.Name, x => x.Value);
+			var job = redis.HashGetAll(Prefix + "job:my-job").ToDictionary(x => x.Name, x => x.Value);
 			Assert.False(job.ContainsKey("Fetched"));
 		}
 
@@ -79,8 +81,8 @@ namespace Hangfire.Redis.StackExchange.Tests
 		{
 			var redis = Redis.Storage.GetDatabase();
 			// Arrange
-			redis.SetAdd("hangfire:queues", "my-queue");
-			redis.ListLeftPush("hangfire:queue:my-queue:dequeued", "my-job");
+			redis.SetAdd(Prefix + "queues", "my-queue");
+			redis.ListLeftPush(Prefix + "queue:my-queue:dequeued", "my-job");
 
 			var watcher = CreateWatcher();
 
@@ -88,7 +90,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 			watcher.Execute(_cts.Token);
 
 			Assert.NotNull(JobHelper.DeserializeNullableDateTime(
-				redis.HashGet("hangfire:job:my-job", "Checked")));
+				redis.HashGet(Prefix + "job:my-job", "Checked")));
 		}
 
 		[Fact, CleanRedis]
@@ -96,9 +98,9 @@ namespace Hangfire.Redis.StackExchange.Tests
 		{
 			var redis = Redis.Storage.GetDatabase();
 			// Arrange
-			redis.SetAdd("hangfire:queues", "my-queue");
-			redis.ListLeftPush("hangfire:queue:my-queue:dequeued", "my-job");
-			redis.HashSet("hangfire:job:my-job", "Checked",
+			redis.SetAdd(Prefix + "queues", "my-queue");
+			redis.ListLeftPush(Prefix + "queue:my-queue:dequeued", "my-job");
+			redis.HashSet(Prefix + "job:my-job", "Checked",
 				JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-1)));
 
 			var watcher = CreateWatcher();
@@ -107,10 +109,10 @@ namespace Hangfire.Redis.StackExchange.Tests
 			watcher.Execute(_cts.Token);
 
 			// Arrange
-			Assert.Equal(0, redis.ListLength("hangfire:queue:my-queue:dequeued"));
-			Assert.Equal(1, redis.ListLength("hangfire:queue:my-queue"));
+			Assert.Equal(0, redis.ListLength(Prefix + "queue:my-queue:dequeued"));
+			Assert.Equal(1, redis.ListLength(Prefix + "queue:my-queue"));
 
-			var job = redis.HashGetAll("hangfire:job:my-job").ToDictionary(x => x.Name, x => x.Value);
+			var job = redis.HashGetAll(Prefix + "job:my-job").ToDictionary(x => x.Name, x => x.Value);
 			Assert.False(job.ContainsKey("Checked"));
 		}
 
@@ -119,11 +121,11 @@ namespace Hangfire.Redis.StackExchange.Tests
 		{
 			var redis = Redis.Storage.GetDatabase();
 			// Arrange
-			redis.SetAdd("hangfire:queues", "my-queue");
-			redis.ListLeftPush("hangfire:queue:my-queue:dequeued", "my-job");
-			redis.HashSet("hangfire:job:my-job", "Checked",
+			redis.SetAdd(Prefix + "queues", "my-queue");
+			redis.ListLeftPush(Prefix + "queue:my-queue:dequeued", "my-job");
+			redis.HashSet(Prefix + "job:my-job", "Checked",
 				JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-1)));
-			redis.HashSet("hangfire:job:my-job", "Fetched",
+			redis.HashSet(Prefix + "job:my-job", "Fetched",
 				JobHelper.SerializeDateTime(DateTime.UtcNow));
 
 			var watcher = CreateWatcher();
@@ -132,7 +134,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 			watcher.Execute(_cts.Token);
 
 			// Assert
-			Assert.Equal(1, redis.ListLength("hangfire:queue:my-queue:dequeued"));
+			Assert.Equal(1, redis.ListLength(Prefix + "queue:my-queue:dequeued"));
 
 		}
 

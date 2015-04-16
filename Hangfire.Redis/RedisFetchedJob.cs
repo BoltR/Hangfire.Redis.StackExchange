@@ -25,9 +25,10 @@ namespace Hangfire.Redis.StackExchange
         private bool _disposed;
         private bool _removedFromQueue;
         private bool _requeued;
+        private string Prefix;
         private IDatabase _client;
 
-        public RedisFetchedJob(IDatabase client, string jobId, string queue)
+        public RedisFetchedJob(IDatabase client, string jobId, string queue, string prefix)
         {
             if (client == null) throw new ArgumentNullException("client");
             if (jobId == null) throw new ArgumentNullException("jobId");
@@ -36,6 +37,7 @@ namespace Hangfire.Redis.StackExchange
             _client = client;
             JobId = jobId;
             Queue = queue;
+            Prefix = prefix;
         }
 
         public string JobId { get; private set; }
@@ -53,7 +55,7 @@ namespace Hangfire.Redis.StackExchange
         public void Requeue()
         {
             var transaction = _client.CreateTransaction();
-            transaction.ListRightPushAsync(String.Format(RedisStorage.Prefix + "queue:{0}", Queue), JobId);
+            transaction.ListRightPushAsync(String.Format(Prefix + "queue:{0}", Queue), JobId);
             RemoveFromFetchedList(transaction);
             transaction.Execute();
 
@@ -74,9 +76,9 @@ namespace Hangfire.Redis.StackExchange
 
         private void RemoveFromFetchedList(ITransaction transaction)
         {
-            transaction.ListRemoveAsync(String.Format(RedisStorage.Prefix + "queue:{0}:dequeued", Queue), JobId, 1);
-            transaction.HashDeleteAsync(String.Format(RedisStorage.Prefix + "job:{0}", JobId), "Fetched");
-            transaction.HashDeleteAsync(String.Format(RedisStorage.Prefix + "job:{0}", JobId), "Checked");
+            transaction.ListRemoveAsync(String.Format(Prefix + "queue:{0}:dequeued", Queue), JobId, 1);
+            transaction.HashDeleteAsync(String.Format(Prefix + "job:{0}", JobId), "Fetched");
+            transaction.HashDeleteAsync(String.Format(Prefix + "job:{0}", JobId), "Checked");
         }
     }
 }

@@ -13,7 +13,9 @@ namespace Hangfire.Redis.StackExchange.Tests
             JobStorage.Current = null;
             Assert.Throws<InvalidOperationException>(() => JobStorage.Current);
             GlobalConfiguration.Configuration.UseRedisStorage("localhost:6379");
-            Assert.NotNull(JobStorage.Current as RedisStorage);
+            var Storage = JobStorage.Current as RedisStorage;
+            Assert.NotNull(Storage);
+            Assert.Equal("hangfire:", Storage.Prefix);
         }
 
         [Fact]
@@ -22,7 +24,20 @@ namespace Hangfire.Redis.StackExchange.Tests
             JobStorage.Current = null;
             Assert.Throws<InvalidOperationException>(() => JobStorage.Current);
             GlobalConfiguration.Configuration.UseRedisStorage("localhost:6379", 6);
-            Assert.NotNull(JobStorage.Current as RedisStorage);
+            var Storage = JobStorage.Current as RedisStorage;
+            Assert.NotNull(Storage);
+            Assert.Equal("hangfire:", Storage.Prefix);
+        }
+
+        [Fact]
+        public void String_DatabaseWithPrefix()
+        {
+            JobStorage.Current = null;
+            Assert.Throws<InvalidOperationException>(() => JobStorage.Current);
+            GlobalConfiguration.Configuration.UseRedisStorage("localhost:6379", 6, "test:");
+            var Storage = JobStorage.Current as RedisStorage;
+            Assert.NotNull(Storage);
+            Assert.Equal("test:", Storage.Prefix);
         }
 
         [Fact]
@@ -39,7 +54,9 @@ namespace Hangfire.Redis.StackExchange.Tests
             JobStorage.Current = null;
             Assert.Throws<InvalidOperationException>(() => JobStorage.Current);
             GlobalConfiguration.Configuration.UseRedisStorage(ConfigurationOptions.Parse("localhost:6379"));
-            Assert.NotNull(JobStorage.Current as RedisStorage);
+            var Storage = JobStorage.Current as RedisStorage;
+            Assert.NotNull(Storage);
+            Assert.Equal("hangfire:", Storage.Prefix);
         }
 
         [Fact]
@@ -48,7 +65,20 @@ namespace Hangfire.Redis.StackExchange.Tests
             JobStorage.Current = null;
             Assert.Throws<InvalidOperationException>(() => JobStorage.Current);
             GlobalConfiguration.Configuration.UseRedisStorage(ConfigurationOptions.Parse("localhost:6379"), 6);
-            Assert.NotNull(JobStorage.Current as RedisStorage);
+            var Storage = JobStorage.Current as RedisStorage;
+            Assert.NotNull(Storage);
+            Assert.Equal("hangfire:", Storage.Prefix);
+        }
+
+        [Fact]
+        public void Options_DatabasePrefix()
+        {
+            JobStorage.Current = null;
+            Assert.Throws<InvalidOperationException>(() => JobStorage.Current);
+            GlobalConfiguration.Configuration.UseRedisStorage(ConfigurationOptions.Parse("localhost:6379"), 6, "test:");
+            var Storage = JobStorage.Current as RedisStorage;
+            Assert.NotNull(Storage);
+            Assert.Equal("test:", Storage.Prefix);
         }
 
         [Fact]

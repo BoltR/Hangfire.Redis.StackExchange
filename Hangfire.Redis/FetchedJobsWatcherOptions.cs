@@ -20,15 +20,18 @@ namespace Hangfire.Redis.StackExchange
 {
     internal class FetchedJobsWatcherOptions
     {
-        public FetchedJobsWatcherOptions()
+        public FetchedJobsWatcherOptions() : this(RedisStorage.DefaultPrefix) {}
+        public FetchedJobsWatcherOptions(string Prefix)
         {
             FetchedLockTimeout = TimeSpan.FromMinutes(1);
             CheckedTimeout = TimeSpan.FromMinutes(1);
             SleepTimeout = TimeSpan.FromMinutes(1);
+            this.Prefix = Prefix;
         }
 
         public TimeSpan FetchedLockTimeout { get; set; }
         public TimeSpan CheckedTimeout { get; set; }
         public TimeSpan SleepTimeout { get; set; }
+        public string Prefix { get; set; }
     }
 }

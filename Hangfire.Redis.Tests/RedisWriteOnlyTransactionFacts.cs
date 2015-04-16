@@ -13,17 +13,18 @@ namespace Hangfire.Redis.StackExchange.Tests
     public class RedisWriteOnlyTransactionFacts
     {
         private static RedisFixture Redis;
+        private readonly string Prefix;
 
         public RedisWriteOnlyTransactionFacts(RedisFixture _Redis)
         {
             Redis = _Redis;
+            Prefix = Redis.Storage.Prefix;
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenTransactionIsNull()
         {
-            Assert.Throws<ArgumentNullException>(
-                () => new RedisWriteOnlyTransaction(null, null));
+            Assert.Throws<ArgumentNullException>(() => new RedisWriteOnlyTransaction(null, null, null));
         }
 
         [Fact, CleanRedis]
@@ -32,17 +33,17 @@ namespace Hangfire.Redis.StackExchange.Tests
             UseConnection(redis =>
             {
                 // Arrange
-                redis.StringSet("hangfire:job:my-job", "job");
-                redis.StringSet("hangfire:job:my-job:state", "state");
-                redis.StringSet("hangfire:job:my-job:history", "history");
+                redis.StringSet(Prefix + "job:my-job", "job");
+                redis.StringSet(Prefix + "job:my-job:state", "state");
+                redis.StringSet(Prefix + "job:my-job:history", "history");
 
                 // Act
                 Commit(redis, x => x.ExpireJob("my-job", TimeSpan.FromDays(1)));
 
                 // Assert
-                var jobEntryTtl = redis.KeyTimeToLive("hangfire:job:my-job");
-                var stateEntryTtl = redis.KeyTimeToLive("hangfire:job:my-job:state");
-                var historyEntryTtl = redis.KeyTimeToLive("hangfire:job:my-job:state");
+                var jobEntryTtl = redis.KeyTimeToLive(Prefix + "job:my-job");
+                var stateEntryTtl = redis.KeyTimeToLive(Prefix + "job:my-job:state");
+                var historyEntryTtl = redis.KeyTimeToLive(Prefix + "job:my-job:state");
 
                 Assert.True(TimeSpan.FromHours(23) < jobEntryTtl && jobEntryTtl < TimeSpan.FromHours(25));
                 Assert.True(TimeSpan.FromHours(23) < stateEntryTtl && stateEntryTtl < TimeSpan.FromHours(25));
@@ -65,7 +66,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                 Commit(redis, x => x.SetJobState("my-job", state));
 
                 // Assert
-                var hash = redis.HashGetAll("hangfire:job:my-job");
+                var hash = redis.HashGetAll(Prefix + "job:my-job");
                 Assert.Equal("my-state", hash[0].Value);
             });
         }
@@ -76,7 +77,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             UseConnection(redis =>
             {
                 // Arrange
-                redis.HashSet("hangfire:job:my-job:state", "OldName", "OldValue");
+                redis.HashSet(Prefix + "job:my-job:state", "OldName", "OldValue");
 
                 var state = Substitute.For<IState>();
                 state.SerializeData().Returns(new Dictionary<string, string>() { { "Name", "Value" } });
@@ -87,7 +88,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                 Commit(redis, x => x.SetJobState("my-job", state));
 
                 // Assert
-                var stateHash = redis.HashGetAll("hangfire:job:my-job:state").ToDictionary(x => x.Name, x => x.Value);
+                var stateHash = redis.HashGetAll(Prefix + "job:my-job:state").ToDictionary(x => x.Name, x => x.Value);
                 Assert.False(stateHash.ContainsKey("OldName"));
                 //Assert.Equal("my-state", stateHash["State"]); TODO: Why should this be true?
                 Assert.Equal("my-reason", stateHash["Reason"]);
@@ -109,7 +110,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                 Commit(redis, x => x.SetJobState("my-job", state));
 
                 // Assert
-                Assert.Equal(1, redis.ListLength("hangfire:job:my-job:history"));
+                Assert.Equal(1, redis.ListLength(Prefix + "job:my-job:history"));
             });
         }
 
@@ -119,17 +120,17 @@ namespace Hangfire.Redis.StackExchange.Tests
             UseConnection(redis =>
             {
                 // Arrange
-                redis.StringSet("hangfire:job:my-job", "job", TimeSpan.FromDays(1));
-                redis.StringSet("hangfire:job:my-job:state", "state", TimeSpan.FromDays(1));
-                redis.StringSet("hangfire:job:my-job:history", "history", TimeSpan.FromDays(1));
+                redis.StringSet(Prefix + "job:my-job", "job", TimeSpan.FromDays(1));
+                redis.StringSet(Prefix + "job:my-job:state", "state", TimeSpan.FromDays(1));
+                redis.StringSet(Prefix + "job:my-job:history", "history", TimeSpan.FromDays(1));
 
                 // Act
                 Commit(redis, x => x.PersistJob("my-job"));
 
                 // Assert
-                Assert.Null(redis.KeyTimeToLive("hangfire:job:my-job"));
-                Assert.Null(redis.KeyTimeToLive("hangfire:job:my-job:state"));
-                Assert.Null(redis.KeyTimeToLive("hangfire:job:my-job:history"));
+                Assert.Null(redis.KeyTimeToLive(Prefix + "job:my-job"));
+                Assert.Null(redis.KeyTimeToLive(Prefix + "job:my-job:state"));
+                Assert.Null(redis.KeyTimeToLive(Prefix + "job:my-job:history"));
             });
         }
 
@@ -149,7 +150,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                 Commit(redis, x => x.AddJobState("my-job", state));
 
                 // Assert
-                var serializedEntry = redis.ListGetByIndex("hangfire:job:my-job:history", 0);
+                var serializedEntry = redis.ListGetByIndex(Prefix + "job:my-job:history", 0);
                 Assert.NotNull(serializedEntry);
 
                 var entry = JobHelper.FromJson<Dictionary<string, string>>(serializedEntry);
@@ -167,8 +168,8 @@ namespace Hangfire.Redis.StackExchange.Tests
             {
                 Commit(redis, x => x.AddToQueue("critical", "my-job"));
 
-                Assert.True(redis.SetContains("hangfire:queues", "critical"));
-                Assert.Equal("my-job", redis.ListGetByIndex("hangfire:queue:critical", 0));
+                Assert.True(redis.SetContains(Prefix + "queues", "critical"));
+                Assert.Equal("my-job", redis.ListGetByIndex(Prefix + "queue:critical", 0));
             });
         }
 
@@ -177,11 +178,11 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                redis.ListRightPush("hangfire:queue:critical", "another-job");
+                redis.ListRightPush(Prefix + "queue:critical", "another-job");
 
                 Commit(redis, x => x.AddToQueue("critical", "my-job"));
 
-                Assert.Equal("my-job", redis.ListGetByIndex("hangfire:queue:critical", 0));
+                Assert.Equal("my-job", redis.ListGetByIndex(Prefix + "queue:critical", 0));
             });
         }
 
@@ -190,12 +191,12 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                redis.StringSet("hangfire:entry", "3");
+                redis.StringSet(Prefix + "entry", "3");
 
                 Commit(redis, x => x.IncrementCounter("entry"));
 
-                Assert.Equal("4", redis.StringGet("hangfire:entry"));
-                Assert.Null(redis.KeyTimeToLive("hangfire:entry"));
+                Assert.Equal("4", redis.StringGet(Prefix + "entry"));
+                Assert.Null(redis.KeyTimeToLive(Prefix + "entry"));
             });
         }
 
@@ -204,12 +205,12 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                redis.StringSet("hangfire:entry", "3");
+                redis.StringSet(Prefix + "entry", "3");
 
                 Commit(redis, x => x.IncrementCounter("entry", TimeSpan.FromDays(1)));
 
-                var entryTtl = redis.KeyTimeToLive("hangfire:entry");
-                Assert.Equal("4", redis.StringGet("hangfire:entry"));
+                var entryTtl = redis.KeyTimeToLive(Prefix + "entry");
+                Assert.Equal("4", redis.StringGet(Prefix + "entry"));
                 Assert.True(TimeSpan.FromHours(23) < entryTtl && entryTtl < TimeSpan.FromHours(25));
             });
         }
@@ -219,11 +220,11 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                redis.StringSet("hangfire:entry", "3");
+                redis.StringSet(Prefix + "entry", "3");
 
                 Commit(redis, x => x.DecrementCounter("entry"));
 
-                Assert.Equal("2", redis.StringGet("hangfire:entry"));
+                Assert.Equal("2", redis.StringGet(Prefix + "entry"));
                 Assert.Null(redis.KeyTimeToLive("entry"));
             });
         }
@@ -233,12 +234,12 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                redis.StringSet("hangfire:entry", "3");
+                redis.StringSet(Prefix + "entry", "3");
 
                 Commit(redis, x => x.DecrementCounter("entry", TimeSpan.FromDays(1)));
 
-                var entryTtl = redis.KeyTimeToLive("hangfire:entry");
-                Assert.Equal("2", redis.StringGet("hangfire:entry"));
+                var entryTtl = redis.KeyTimeToLive(Prefix + "entry");
+                Assert.Equal("2", redis.StringGet(Prefix + "entry"));
                 Assert.True(TimeSpan.FromHours(23) < entryTtl && entryTtl < TimeSpan.FromHours(25));
             });
         }
@@ -250,7 +251,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             {
                 Commit(redis, x => x.AddToSet("my-set", "my-value"));
 
-                Assert.NotNull(redis.SortedSetScore("hangfire:my-set", "my-value"));
+                Assert.NotNull(redis.SortedSetScore(Prefix + "my-set", "my-value"));
             });
         }
 
@@ -261,8 +262,8 @@ namespace Hangfire.Redis.StackExchange.Tests
             {
                 Commit(redis, x => x.AddToSet("my-set", "my-value", 3.2));
 
-                Assert.NotNull(redis.SortedSetScore("hangfire:my-set", "my-value"));
-                Assert.Equal(3.2, redis.SortedSetScore("hangfire:my-set", "my-value"));
+                Assert.NotNull(redis.SortedSetScore(Prefix + "my-set", "my-value"));
+                Assert.Equal(3.2, redis.SortedSetScore(Prefix + "my-set", "my-value"));
             });
         }
 
@@ -271,11 +272,11 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                redis.SortedSetAdd("hangfire:my-set", "my-value", 0);
+                redis.SortedSetAdd(Prefix + "my-set", "my-value", 0);
 
                 Commit(redis, x => x.RemoveFromSet("my-set", "my-value"));
 
-                Assert.Null(redis.SortedSetScore("hangfire:my-set", "my-value"));
+                Assert.Null(redis.SortedSetScore(Prefix + "my-set", "my-value"));
             });
         }
 
@@ -284,11 +285,11 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                redis.ListRightPush("hangfire:list", "value");
+                redis.ListRightPush(Prefix + "list", "value");
 
                 Commit(redis, x => x.InsertToList("list", "new-value"));
 
-                Assert.Equal("new-value", redis.ListGetByIndex("hangfire:list", 0));
+                Assert.Equal("new-value", redis.ListGetByIndex(Prefix + "list", 0));
             });
         }
 
@@ -297,14 +298,14 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                redis.ListRightPush("hangfire:list", "value");
-                redis.ListRightPush("hangfire:list", "another-value");
-                redis.ListRightPush("hangfire:list", "value");
+                redis.ListRightPush(Prefix + "list", "value");
+                redis.ListRightPush(Prefix + "list", "another-value");
+                redis.ListRightPush(Prefix + "list", "value");
 
                 Commit(redis, x => x.RemoveFromList("list", "value"));
 
-                Assert.Equal(1, redis.ListLength("hangfire:list"));
-                Assert.Equal("another-value", redis.ListGetByIndex("hangfire:list", 0));
+                Assert.Equal(1, redis.ListLength(Prefix + "list"));
+                Assert.Equal("another-value", redis.ListGetByIndex(Prefix + "list", 0));
             });
         }
 
@@ -313,16 +314,16 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                redis.ListRightPush("hangfire:list", "1");
-                redis.ListRightPush("hangfire:list", "2");
-                redis.ListRightPush("hangfire:list", "3");
-                redis.ListRightPush("hangfire:list", "4");
+                redis.ListRightPush(Prefix + "list", "1");
+                redis.ListRightPush(Prefix + "list", "2");
+                redis.ListRightPush(Prefix + "list", "3");
+                redis.ListRightPush(Prefix + "list", "4");
 
                 Commit(redis, x => x.TrimList("list", 1, 2));
 
-                Assert.Equal(2, redis.ListLength("hangfire:list"));
-                Assert.Equal("2", redis.ListGetByIndex("hangfire:list", 0));
-                Assert.Equal("3", redis.ListGetByIndex("hangfire:list", 1));
+                Assert.Equal(2, redis.ListLength(Prefix + "list"));
+                Assert.Equal("2", redis.ListGetByIndex(Prefix + "list", 0));
+                Assert.Equal("3", redis.ListGetByIndex(Prefix + "list", 1));
             });
         }
 
@@ -361,7 +362,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                     { "Key2", "Value2" }
                 }));
 
-                var hash = redis.HashGetAll("hangfire:some-hash");
+                var hash = redis.HashGetAll(Prefix + "some-hash");
                 Assert.Equal("Value1", hash[0].Value);
                 Assert.Equal("Value2", hash[1].Value);
             });
@@ -382,18 +383,36 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                redis.HashSet("hangfire:some-hash", "key", "value");
+                redis.HashSet(Prefix + "some-hash", "key", "value");
 
                 Commit(redis, x => x.RemoveHash("some-hash"));
 
-                var hash = redis.HashGetAll("hangfire:some-hash");
+                var hash = redis.HashGetAll(Prefix + "some-hash");
                 Assert.Equal(0, hash.Length);
+            });
+        }
+
+        [Fact]
+        private void DifferentPrefix()
+        {
+            UseConnection(redis =>
+            {
+                var SecondStorage = new RedisStorage(Redis.ServerInfo, Redis.Storage.Db, "test:");
+                var SecondConnection = SecondStorage.GetDatabase();
+                Commit(redis, x => x.InsertToList("some-list", "value"));
+                var transaction = new RedisWriteOnlyTransaction(SecondConnection.CreateTransaction(), SecondStorage.GetSubscribe(), SecondStorage.Prefix);
+                transaction.InsertToList("some-list", "value2");
+                transaction.Commit();
+                Assert.Equal(1, redis.ListLength(Prefix + "some-list"));
+                Assert.Equal(1, SecondConnection.ListLength(SecondStorage.Prefix + "some-list"));
+                Assert.Equal("value", redis.ListLeftPop(Prefix + "some-list"));
+                Assert.Equal("value2", SecondConnection.ListLeftPop(SecondStorage.Prefix + "some-list"));
             });
         }
 
         private void Commit(IDatabase connection, Action<RedisWriteOnlyTransaction> action)
         {
-            using (var transaction = new RedisWriteOnlyTransaction(connection.CreateTransaction(), Redis.Storage.GetSubscribe()))
+            using (var transaction = new RedisWriteOnlyTransaction(connection.CreateTransaction(), Redis.Storage.GetSubscribe(), Prefix))
             {
                 action(transaction);
                 transaction.Commit();

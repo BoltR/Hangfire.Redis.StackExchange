@@ -25,10 +25,11 @@ namespace Hangfire.Redis.StackExchange
         private ISubscriber _Subscriber;
         private ManualResetEvent _Event;
 
-        private const string Channel = "Hangfire:announce";
+        private readonly string Channel;
 
-        public RedisSubscribe(ISubscriber Subscriber)
+        public RedisSubscribe(ISubscriber Subscriber, string Prefix)
         {
+            Channel = Prefix + "announce";
             _Subscriber = Subscriber;
             _Event = new ManualResetEvent(false);
 

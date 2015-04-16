@@ -21,6 +21,14 @@ namespace Hangfire.Redis.StackExchange
             return configuration.UseStorage(storage);
         }
 
+        public static IGlobalConfiguration<RedisStorage> UseRedisStorage(this IGlobalConfiguration configuration, string OptionString, int db, string Prefix)
+        {
+            if (configuration == null) throw new ArgumentNullException("configuration");
+            if (OptionString == null) throw new ArgumentNullException("OptionString");
+            var storage = new RedisStorage(OptionString, db, Prefix);
+            return configuration.UseStorage(storage);
+        }
+
         public static IGlobalConfiguration<RedisStorage> UseRedisStorage(this IGlobalConfiguration configuration, ConfigurationOptions Options)
         {
             if (configuration == null) throw new ArgumentNullException("configuration");
@@ -34,6 +42,14 @@ namespace Hangfire.Redis.StackExchange
             if (configuration == null) throw new ArgumentNullException("configuration");
             if (Options == null) throw new ArgumentNullException("Options");
             var storage = new RedisStorage(Options, db);
+            return configuration.UseStorage(storage);
+        }
+
+        public static IGlobalConfiguration<RedisStorage> UseRedisStorage(this IGlobalConfiguration configuration, ConfigurationOptions Options, int db, string Prefix)
+        {
+            if (configuration == null) throw new ArgumentNullException("configuration");
+            if (Options == null) throw new ArgumentNullException("Options");
+            var storage = new RedisStorage(Options, db, Prefix);
             return configuration.UseStorage(storage);
         }
     }

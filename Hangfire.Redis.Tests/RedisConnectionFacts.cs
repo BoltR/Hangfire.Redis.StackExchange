@@ -13,9 +13,11 @@ namespace Hangfire.Redis.StackExchange.Tests
     public class RedisConnectionFacts
     {
         private readonly RedisFixture Redis;
+        private readonly string Prefix;
         public RedisConnectionFacts(RedisFixture Redis) 
         {
             this.Redis = Redis;
+            Prefix = Redis.Storage.Prefix;
         }
 
         [Fact, CleanRedis]
@@ -37,7 +39,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                         }
                     }
                 }
-                Assert.Equal(2, redis.HashLength("hangfire:some-hash"));
+                Assert.Equal(2, redis.HashLength(Prefix + "some-hash"));
             });
         }
 
@@ -65,7 +67,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                 var transaction = connection.CreateWriteTransaction();
                 transaction.AddToSet("some-set", "test");
                 transaction.Commit();
-                var setitems = redis.SortedSetScan("hangfire:some-set");
+                var setitems = redis.SortedSetScan(Prefix + "some-set");
                 Assert.Equal(1, setitems.Count());
                 Assert.Equal("test", setitems.First().Element);
             });
@@ -78,7 +80,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             IFetchedJob Job = null;
             UseConnections((redis, connection) =>
             {
-                redis.ListRightPush("hangfire:queue:1", "job1");
+                redis.ListRightPush(Prefix + "queue:1", "job1");
                 var t = new Thread(() => Job = connection.FetchNextJob(new string[] { "1" }, cancel.Token));
                 t.IsBackground = true;
                 t.Start();
@@ -100,8 +102,8 @@ namespace Hangfire.Redis.StackExchange.Tests
                 t.IsBackground = true;
                 t.Start();
                 Thread.Sleep(10); //Enough time for Redis to respond that there are no jobs in queue, and the thread to start waiting
-                redis.ListRightPush("hangfire:queue:1", "job2");
-                redis.Publish("Hangfire:announce", "1"); //Pub to wake up thread
+                redis.ListRightPush(Prefix + "queue:1", "job2");
+                redis.Publish(Prefix + "announce", "1"); //Pub to wake up thread
                 t.Join();
 
                 Assert.Equal("job2", Job.JobId);
@@ -143,7 +145,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                 var parameters = new Dictionary<string, string>() { {"Key1", "Value1" } };
                 var jobid = connection.CreateExpiredJob(job, parameters, DateTime.UtcNow, TimeSpan.FromMinutes(5));
 
-                var ReturnedJob = redis.HashGetAll("hangfire:job:" + jobid).ToStringDictionary(); ;
+                var ReturnedJob = redis.HashGetAll(Prefix + "job:" + jobid).ToStringDictionary(); ;
                 Assert.Equal("WriteLine", ReturnedJob["Method"]);
                 var CreatedAt = JobHelper.DeserializeDateTime(ReturnedJob["CreatedAt"]);
                 Assert.Equal(0, (int)(CreatedAt - DateTime.UtcNow).TotalSeconds);
@@ -179,7 +181,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                 var parameters = new Dictionary<string, string>();
                 var jobid = connection.CreateExpiredJob(job, parameters, DateTime.UtcNow, TimeSpan.FromMinutes(5));
 
-                redis.HashSet("hangfire:job:" + jobid, "Method", "Invalid");
+                redis.HashSet(Prefix + "job:" + jobid, "Method", "Invalid");
 
                 var ReturnedJob = connection.GetJobData(jobid);
                 Assert.IsType<JobLoadException>(ReturnedJob.LoadException);
@@ -211,7 +213,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             UseConnections((redis, connection) =>
             {
                 redis.HashSet(
-                    "hangfire:job:my-job:state",
+                    Prefix + "job:my-job:state",
                     new HashEntry[]
                     {
                         new HashEntry("State", "Name"),
@@ -234,7 +236,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             UseConnections((redis, connection) =>
             {
                 redis.HashSet(
-                    "hangfire:job:my-job:state",
+                    Prefix + "job:my-job:state",
                     new HashEntry[]
                     {
                         new HashEntry( "State", "Name")
@@ -272,8 +274,8 @@ namespace Hangfire.Redis.StackExchange.Tests
             UseConnections((redis, connection) =>
             {
                 // Arrange
-                redis.SortedSetAdd("hangfire:some-set", "1", 0);
-                redis.SortedSetAdd("hangfire:some-set", "2", 0);
+                redis.SortedSetAdd(Prefix + "some-set", "1", 0);
+                redis.SortedSetAdd(Prefix + "some-set", "2", 0);
 
                 // Act
                 var result = connection.GetAllItemsFromSet("some-set");
@@ -320,7 +322,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                     { "Key2", "Value2" }
                 });
 
-                var hash = redis.HashGetAll("hangfire:some-hash").ToDictionary(x => x.Name, x => x.Value);
+                var hash = redis.HashGetAll(Prefix + "some-hash").ToDictionary(x => x.Name, x => x.Value);
                 Assert.Equal("Value1", hash["Key1"]);
                 Assert.Equal("Value2", hash["Key2"]);
             });
@@ -349,7 +351,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             UseConnections((redis, connection) =>
             {
                 // Arrange
-                redis.HashSet("hangfire:some-hash", new HashEntry[]
+                redis.HashSet(Prefix + "some-hash", new HashEntry[]
                 {
                     new HashEntry("Key1", "Value1"),
                     new HashEntry("Key2", "Value2")
@@ -370,10 +372,10 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.StringIncrement("hangfire:counter");
+                redis.StringIncrement(Prefix + "counter");
                 Assert.Equal(1, connection.GetCounter("counter"));
 
-                redis.StringIncrement("hangfire:counter");
+                redis.StringIncrement(Prefix + "counter");
                 Assert.Equal(2, connection.GetCounter("counter"));
             });
         }
@@ -383,7 +385,7 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.SortedSetAdd("hangfire:some-set", new SortedSetEntry[]
+                redis.SortedSetAdd(Prefix + "some-set", new SortedSetEntry[]
                 {
                     new SortedSetEntry("Key1", 0.2),
                     new SortedSetEntry("Key2", 0.3)
@@ -398,7 +400,7 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.SortedSetAdd("hangfire:some-set", new SortedSetEntry[]
+                redis.SortedSetAdd(Prefix + "some-set", new SortedSetEntry[]
                 {
                     new SortedSetEntry("Key1", 0.2),
                     new SortedSetEntry("Key2", 0.3),
@@ -416,7 +418,7 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.SortedSetAdd("hangfire:some-set", new SortedSetEntry[]
+                redis.SortedSetAdd(Prefix + "some-set", new SortedSetEntry[]
                 {
                     new SortedSetEntry("Key1", 0.2),
                     new SortedSetEntry("Key2", 0.3),
@@ -437,7 +439,7 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.SortedSetAdd("hangfire:some-set", new SortedSetEntry[]
+                redis.SortedSetAdd(Prefix + "some-set", new SortedSetEntry[]
                 {
                     new SortedSetEntry("Key1", 0.2),
                     new SortedSetEntry("Key2", 0.3)
@@ -445,7 +447,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 
                 Assert.Equal(TimeSpan.FromSeconds(-1), connection.GetSetTtl("some-set"));
 
-                redis.KeyExpire("hangfire:some-set", DateTime.UtcNow.AddMinutes(1));
+                redis.KeyExpire(Prefix + "some-set", DateTime.UtcNow.AddMinutes(1));
                 Assert.Equal(0, (int)(TimeSpan.FromMinutes(1) - connection.GetSetTtl("some-set")).TotalSeconds);
             });
         }
@@ -455,7 +457,7 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.HashSet("hangfire:some-hash", new HashEntry[]
+                redis.HashSet(Prefix + "some-hash", new HashEntry[]
                 {
                     new HashEntry("Key1", "Value1"),
                     new HashEntry("Key2", "Value2")
@@ -470,7 +472,7 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.HashSet("hangfire:some-hash", new HashEntry[]
+                redis.HashSet(Prefix + "some-hash", new HashEntry[]
                 {
                     new HashEntry("Key1", "Value1"),
                     new HashEntry("Key2", "Value2")
@@ -485,7 +487,7 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.HashSet("hangfire:some-hash", new HashEntry[]
+                redis.HashSet(Prefix + "some-hash", new HashEntry[]
                 {
                     new HashEntry("Key1", "Value1"),
                     new HashEntry("Key2", "Value2")
@@ -493,7 +495,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 
                 Assert.Equal(TimeSpan.FromSeconds(-1), connection.GetHashTtl("some-hash"));
 
-                redis.KeyExpire("hangfire:some-hash", DateTime.UtcNow.AddMinutes(1));
+                redis.KeyExpire(Prefix + "some-hash", DateTime.UtcNow.AddMinutes(1));
                 Assert.Equal(0, (int)(TimeSpan.FromMinutes(1) - connection.GetHashTtl("some-hash")).TotalSeconds);
             });
         }
@@ -503,8 +505,8 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.ListRightPush("hangfire:some-list", "Value");
-                redis.ListRightPush("hangfire:some-list", "Value2");
+                redis.ListRightPush(Prefix + "some-list", "Value");
+                redis.ListRightPush(Prefix + "some-list", "Value2");
 
                 Assert.Equal(2, connection.GetListCount("some-list"));
             });
@@ -515,10 +517,10 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.ListRightPush("hangfire:some-list", "Value");
-                redis.ListRightPush("hangfire:some-list", "Value2");
-                redis.ListRightPush("hangfire:some-list", "Value3");
-                redis.ListRightPush("hangfire:some-list", "Value4");
+                redis.ListRightPush(Prefix + "some-list", "Value");
+                redis.ListRightPush(Prefix + "some-list", "Value2");
+                redis.ListRightPush(Prefix + "some-list", "Value3");
+                redis.ListRightPush(Prefix + "some-list", "Value4");
 
                 var list = connection.GetRangeFromList("some-list", 1, 2);
 
@@ -533,10 +535,10 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.ListRightPush("hangfire:some-list", "Value");
-                redis.ListRightPush("hangfire:some-list", "Value2");
-                redis.ListRightPush("hangfire:some-list", "Value3");
-                redis.ListRightPush("hangfire:some-list", "Value4");
+                redis.ListRightPush(Prefix + "some-list", "Value");
+                redis.ListRightPush(Prefix + "some-list", "Value2");
+                redis.ListRightPush(Prefix + "some-list", "Value3");
+                redis.ListRightPush(Prefix + "some-list", "Value4");
 
                 var list = connection.GetAllItemsFromList("some-list");
 
@@ -549,10 +551,10 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.ListLeftPush("hangfire:some-list", "Value");
+                redis.ListLeftPush(Prefix + "some-list", "Value");
                 Assert.Equal(TimeSpan.FromSeconds(-1), connection.GetListTtl("some-list"));
 
-                redis.KeyExpire("hangfire:some-list", DateTime.UtcNow.AddMinutes(1));
+                redis.KeyExpire(Prefix + "some-list", DateTime.UtcNow.AddMinutes(1));
                 Assert.Equal(0, (int)(TimeSpan.FromMinutes(1) - connection.GetListTtl("some-list")).TotalSeconds);
             });
         }
@@ -573,7 +575,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             UseConnections((redis, connection) =>
             {
                 connection.Heartbeat("1");
-                var pong = JobHelper.DeserializeDateTime(redis.HashGet("hangfire:server:1", "Heartbeat"));
+                var pong = JobHelper.DeserializeDateTime(redis.HashGet(Prefix + "server:1", "Heartbeat"));
                 Assert.Equal(0, (int)(pong - DateTime.UtcNow).TotalSeconds);
             });
         }
@@ -588,10 +590,10 @@ namespace Hangfire.Redis.StackExchange.Tests
                 server.WorkerCount = 5;
                 connection.AnnounceServer("1", server);
 
-                Assert.Equal(1, redis.SetLength("hangfire:servers"));
-                Assert.Equal(1, redis.ListLength("hangfire:server:1:queues"));
-                Assert.Equal("5", redis.HashGet("hangfire:server:1", "WorkerCount"));
-                var pong = JobHelper.DeserializeDateTime(redis.HashGet("hangfire:server:1", "StartedAt"));
+                Assert.Equal(1, redis.SetLength(Prefix + "servers"));
+                Assert.Equal(1, redis.ListLength(Prefix + "server:1:queues"));
+                Assert.Equal("5", redis.HashGet(Prefix + "server:1", "WorkerCount"));
+                var pong = JobHelper.DeserializeDateTime(redis.HashGet(Prefix + "server:1", "StartedAt"));
                 Assert.Equal(0, (int)(pong - DateTime.UtcNow).TotalSeconds);
             });
         }
@@ -606,9 +608,9 @@ namespace Hangfire.Redis.StackExchange.Tests
                 server.WorkerCount = 5;
                 connection.AnnounceServer("1", server);
                 connection.RemoveServer("1");
-                Assert.Equal(0, redis.SetLength("hangfire:servers"));
-                Assert.Equal(0, redis.ListLength("hangfire:server:1:queues"));
-                Assert.Equal(RedisValue.Null, redis.HashGet("hangfire:server:1", "WorkerCount"));
+                Assert.Equal(0, redis.SetLength(Prefix + "servers"));
+                Assert.Equal(0, redis.ListLength(Prefix + "server:1:queues"));
+                Assert.Equal(RedisValue.Null, redis.HashGet(Prefix + "server:1", "WorkerCount"));
             });
         }
 
@@ -617,14 +619,14 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnections((redis, connection) =>
             {
-                redis.SetAdd("hangfire:servers", "1");
-                redis.HashSet("hangfire:server:1", "Heartbeat", JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-1)));
-                redis.HashSet("hangfire:server:1", "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-2)));
-                redis.SetAdd("hangfire:servers", "2");
-                redis.HashSet("hangfire:server:2", "Heartbeat", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)));
-                redis.HashSet("hangfire:server:2", "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-2)));
+                redis.SetAdd(Prefix + "servers", "1");
+                redis.HashSet(Prefix + "server:1", "Heartbeat", JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-1)));
+                redis.HashSet(Prefix + "server:1", "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-2)));
+                redis.SetAdd(Prefix + "servers", "2");
+                redis.HashSet(Prefix + "server:2", "Heartbeat", JobHelper.SerializeDateTime(DateTime.UtcNow.AddMinutes(-1)));
+                redis.HashSet(Prefix + "server:2", "StartedAt", JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-2)));
                 connection.RemoveTimedOutServers(TimeSpan.FromHours(1));
-                Assert.Equal(1, redis.SetLength("hangfire:servers"));
+                Assert.Equal(1, redis.SetLength(Prefix + "servers"));
             });
         }
 

@@ -28,13 +28,14 @@ namespace Hangfire.Redis.StackExchange
 {
     public class RedisStorage : JobStorage, IDisposable
     {
-        internal static readonly string Prefix = "hangfire:";
+        internal readonly string Prefix;
         public readonly string StorageLockID = Guid.NewGuid().ToString();
         private const string ClientName = "Hangfire";
         private readonly ConnectionMultiplexer ServerPool;
         private readonly RedisSubscribe Sub;
         private const string DefaultHost = "localhost";
         private const string DefaultPort = "6379";
+        internal const string DefaultPrefix = "hangfire:";
         private const int DefaultDatabase = 0;
 
         public TimeSpan InvisibilityTimeout { get; set; }
@@ -43,27 +44,22 @@ namespace Hangfire.Redis.StackExchange
 
         private static Regex reg = new Regex("^Unspecified/", RegexOptions.Compiled);
 
-        public RedisStorage() : this(String.Format("{0}:{1}", DefaultHost, DefaultPort))
-        {}
-
-        public RedisStorage(string OptionString) : this(OptionString, DefaultDatabase)
-        {}
-
-        public RedisStorage(string OptionString, int db) : this(ConfigurationOptions.Parse(OptionString), db)
-        {}
-
-        public RedisStorage(ConfigurationOptions Options) : this(Options, DefaultDatabase)
-        {}
-
-        public RedisStorage(ConfigurationOptions Options, int db)
+        public RedisStorage() : this(String.Format("{0}:{1}", DefaultHost, DefaultPort)) {}
+        public RedisStorage(string OptionString) : this(OptionString, DefaultDatabase) {}
+        public RedisStorage(string OptionString, int db) : this(ConfigurationOptions.Parse(OptionString), db, DefaultPrefix) {}
+        public RedisStorage(string OptionString, int db, string prefix) : this(ConfigurationOptions.Parse(OptionString), db, prefix) {}
+        public RedisStorage(ConfigurationOptions Options) : this(Options, DefaultDatabase, DefaultPrefix) {}
+        public RedisStorage(ConfigurationOptions Options, int db) : this(Options, db, DefaultPrefix) {}
+        public RedisStorage(ConfigurationOptions Options, int db, string prefix)
         {
             if (Options == null) throw new ArgumentNullException("Options");
+            Prefix = prefix;
             Db = db;
             InvisibilityTimeout = TimeSpan.FromMinutes(30);
             Options.AbortOnConnectFail = false;
             Options.ClientName = ClientName;
             ServerPool = ConnectionMultiplexer.Connect(Options);
-            Sub = new RedisSubscribe(ServerPool.GetSubscriber());
+            Sub = new RedisSubscribe(ServerPool.GetSubscriber(), Prefix);
         }
 
         public override IMonitoringApi GetMonitoringApi()
@@ -83,12 +79,12 @@ namespace Hangfire.Redis.StackExchange
 
         public override IStorageConnection GetConnection()
         {
-            return new RedisConnection(ServerPool.GetDatabase(Db), Sub, StorageLockID);
+            return new RedisConnection(ServerPool.GetDatabase(Db), Sub, StorageLockID, Prefix);
         }
 
         public override IEnumerable<IServerComponent> GetComponents()
         {
-            yield return new FetchedJobsWatcher(this, InvisibilityTimeout);
+            yield return new FetchedJobsWatcher(this, InvisibilityTimeout, new FetchedJobsWatcherOptions(Prefix));
         }
 
         public override IEnumerable<IStateHandler> GetStateHandlers()
@@ -107,13 +103,6 @@ namespace Hangfire.Redis.StackExchange
         public override string ToString()
         {
             return String.Format("redis://{0}/{1}", String.Join(",", ServerPool.GetEndPoints().Select(x => reg.Replace(x.ToString(), String.Empty))), Db);
-        }
-
-        internal static string GetRedisKey(string key)
-        {
-            if (key == null) throw new ArgumentNullException("key");
-
-            return Prefix + key;
         }
 
         public void Dispose()

@@ -10,11 +10,13 @@ namespace Hangfire.Redis.StackExchange.Tests
 
         private readonly RedisFixture Redis;
         private readonly RedisMonitoringApi Monitor;
+        private readonly string Prefix;
 
         public RedisMonitoringApiFacts(RedisFixture Redis)
         {
             this.Redis = Redis;
             Monitor = new RedisMonitoringApi(Redis.Storage);
+            Prefix = Redis.Storage.Prefix;
         }
 
         [Fact, CleanRedis]
@@ -22,12 +24,12 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseRedis(redis =>
             {
-                redis.SortedSetAdd("hangfire:processing", 1, 1);
-                redis.SortedSetAdd("hangfire:processing", 2, 2);
+                redis.SortedSetAdd(Prefix + "processing", 1, 1);
+                redis.SortedSetAdd(Prefix + "processing", 2, 2);
 
                 for (int i = 1; i <= 3; i++)
                 {
-                    redis.HashSet(String.Format("hangfire:job:{0}", i), new HashEntry[] {
+                    redis.HashSet(String.Format(Prefix + "job:{0}", i), new HashEntry[] {
                     new HashEntry("Type", "System.Threading.Thread, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"),
                     new HashEntry("Method", "Sleep"),
                     new HashEntry("ParameterTypes", @"[""System.Int32, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089""]"),
@@ -35,7 +37,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                     new HashEntry("State", "Processing")
                 });
 
-                    redis.HashSet(String.Format("hangfire:job:{0}:state", i), new HashEntry[] {
+                    redis.HashSet(String.Format(Prefix + "job:{0}:state", i), new HashEntry[] {
                     new HashEntry("StartedAt", "2015-03-17T14:55:30.3674415Z"),
                     new HashEntry("ServerName", "Test"),
                     new HashEntry("ServerId", "1")
@@ -58,16 +60,16 @@ namespace Hangfire.Redis.StackExchange.Tests
             {
                 var id = Guid.NewGuid().ToString();
 
-                redis.SortedSetAdd("hangfire:schedule", id, 0);
+                redis.SortedSetAdd(Prefix + "schedule", id, 0);
 
-                redis.HashSet(String.Format("hangfire:job:{0}", id), new HashEntry[] {
+                redis.HashSet(String.Format(Prefix + "job:{0}", id), new HashEntry[] {
                     new HashEntry("Type", "Test"),
                     new HashEntry("Method", "Test"),
                     new HashEntry("ParameterTypes", "Test"),
                     new HashEntry("Arguments", "Blag")
                 });
 
-                redis.HashSet(String.Format("hangfire:job:{0}:state", id), new HashEntry[] {
+                redis.HashSet(String.Format(Prefix + "job:{0}:state", id), new HashEntry[] {
                     new HashEntry("", "")
                 });
             });
@@ -85,16 +87,16 @@ namespace Hangfire.Redis.StackExchange.Tests
             UseRedis(redis =>
             {
                 var id = Guid.NewGuid().ToString();
-                redis.SortedSetAdd("hangfire:failed", id, 0);
+                redis.SortedSetAdd(Prefix + "failed", id, 0);
 
-                redis.HashSet(String.Format("hangfire:job:{0}", id), new HashEntry[] {
+                redis.HashSet(String.Format(Prefix + "job:{0}", id), new HashEntry[] {
                     new HashEntry("Type", "Test"),
                     new HashEntry("Method", "Test"),
                     new HashEntry("ParameterTypes", "Test"),
                     new HashEntry("Arguments", "Blag")
                 });
 
-                redis.HashSet(String.Format("hangfire:job:{0}:state", id), new HashEntry[] {
+                redis.HashSet(String.Format(Prefix + "job:{0}:state", id), new HashEntry[] {
                     new HashEntry("", "")
                 });
             });
@@ -118,8 +120,8 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseRedis(redis =>
             {
-                redis.SetAdd("hangfire:queues", "test");
-                redis.ListLeftPush("hangfire:queue:test", new RedisValue[] {
+                redis.SetAdd(Prefix + "queues", "test");
+                redis.ListLeftPush(Prefix + "queue:test", new RedisValue[] {
                      "1", "2", "3" 
                 });
 
@@ -144,14 +146,14 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseRedis(redis =>
             {
-                redis.SetAdd("hangfire:queues", "test");
-                redis.ListLeftPush("hangfire:queue:test:dequeued", new RedisValue[] {
+                redis.SetAdd(Prefix + "queues", "test");
+                redis.ListLeftPush(Prefix + "queue:test:dequeued", new RedisValue[] {
                      "1", "2", "3" 
                 });
 
                 for (int i = 1; i <= 3; i++)
                 {
-                    redis.HashSet(String.Format("hangfire:job:{0}", i), new HashEntry[] {
+                    redis.HashSet(String.Format(Prefix + "job:{0}", i), new HashEntry[] {
                         new HashEntry("Type", "System.Threading.Thread, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"),
                         new HashEntry("Method", "Sleep"),
                         new HashEntry("ParameterTypes", @"[""System.Int32, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089""]"),
