@@ -120,13 +120,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                 var id = Guid.NewGuid().ToString();
                 redis.SortedSetAdd(Prefix + "failed", id, 0);
 
-                redis.HashSet(String.Format(Prefix + "job:{0}", id), new HashEntry[] {
-                    new HashEntry("Type", "Test"),
-                    new HashEntry("Method", "Test"),
-                    new HashEntry("ParameterTypes", "Test"),
-                    new HashEntry("Arguments", "Blag")
-                });
-
+                redis.HashSet(String.Format(Prefix + "job:{0}", id), FunctionToHashEntry(() => Console.WriteLine("Test")));
                 redis.HashSet(String.Format(Prefix + "job:{0}:state", id), new HashEntry[] {
                     new HashEntry("", "")
                 });
@@ -148,12 +142,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                 var id = Guid.NewGuid().ToString();
                 redis.ListRightPush(Prefix + "deleted", id, 0);
 
-                redis.HashSet(String.Format(Prefix + "job:{0}", id), new HashEntry[] {
-                    new HashEntry("Type", "Test"),
-                    new HashEntry("Method", "Test"),
-                    new HashEntry("ParameterTypes", "Test"),
-                    new HashEntry("Arguments", "Blag")
-                });
+                redis.HashSet(String.Format(Prefix + "job:{0}", id), FunctionToHashEntry(() => Console.WriteLine("Test")));
                 redis.HashSet(String.Format(Prefix + "job:{0}:state", id), new HashEntry[] {
                     new HashEntry("DeletedAt", Hangfire.Common.JobHelper.SerializeDateTime(DeletedTime))
                 });
@@ -175,12 +164,7 @@ namespace Hangfire.Redis.StackExchange.Tests
                 var id = Guid.NewGuid().ToString();
                 redis.ListRightPush(Prefix + "succeeded", id, 0);
 
-                redis.HashSet(String.Format(Prefix + "job:{0}", id), new HashEntry[] {
-                    new HashEntry("Type", "Test"),
-                    new HashEntry("Method", "Test"),
-                    new HashEntry("ParameterTypes", "Test"),
-                    new HashEntry("Arguments", "Blag")
-                });
+                redis.HashSet(String.Format(Prefix + "job:{0}", id), FunctionToHashEntry(() => Console.WriteLine("Test")));
                 redis.HashSet(String.Format(Prefix + "job:{0}:state", id), new HashEntry[] {
                     new HashEntry("SucceededAt", Hangfire.Common.JobHelper.SerializeDateTime(SucceededTime))
                 });
