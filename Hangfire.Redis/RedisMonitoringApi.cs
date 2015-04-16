@@ -65,8 +65,7 @@ namespace Hangfire.Redis.StackExchange
             return UseConnection(redis => redis.ListLength(Redis.Prefix + "deleted"));
         }
 
-        public JobList<ProcessingJobDto> ProcessingJobs(
-            int from, int count)
+        public JobList<ProcessingJobDto> ProcessingJobs(int from, int count)
         {
             return UseConnection(redis =>
             {
@@ -312,8 +311,7 @@ namespace Hangfire.Redis.StackExchange
             });
         }
 
-        public JobList<EnqueuedJobDto> EnqueuedJobs(
-            string queue, int from, int perPage)
+        public JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int from, int perPage)
         {
             return UseConnection(redis =>
             {
@@ -337,8 +335,7 @@ namespace Hangfire.Redis.StackExchange
             });
         }
 
-        public JobList<FetchedJobDto> FetchedJobs(
-            string queue, int from, int perPage)
+        public JobList<FetchedJobDto> FetchedJobs(string queue, int from, int perPage)
         {
             return UseConnection(redis =>
             {
@@ -374,7 +371,6 @@ namespace Hangfire.Redis.StackExchange
         {
             return UseConnection(redis =>
             {
-                //TODO: Remove dictionary?
                 var job = redis.HashGetAll(String.Format(Redis.Prefix + "job:{0}", jobId)).ToStringDictionary();
                 if (job.Count == 0) return null;
 
@@ -426,8 +422,7 @@ namespace Hangfire.Redis.StackExchange
             });
         }
 
-        private Dictionary<DateTime, long> GetHourlyTimelineStats(
-            IDatabase redis, string type)
+        private Dictionary<DateTime, long> GetHourlyTimelineStats(IDatabase redis, string type)
         {
             var endDate = DateTime.UtcNow;
             var dates = new List<DateTime>();
@@ -454,8 +449,7 @@ namespace Hangfire.Redis.StackExchange
             return result;
         }
 
-        private Dictionary<DateTime, long> GetTimelineStats(
-            IDatabase redis, string type)
+        private Dictionary<DateTime, long> GetTimelineStats(IDatabase redis, string type)
         {
             var endDate = DateTime.UtcNow.Date;
             var startDate = endDate.AddDays(-7);
@@ -585,8 +579,7 @@ namespace Hangfire.Redis.StackExchange
             return action(Redis.GetDatabase());
         }
 
-        private static Job TryToGetJob(
-            string type, string method, string parameterTypes, string arguments)
+        private static Job TryToGetJob(string type, string method, string parameterTypes, string arguments)
         {
             try
             {
