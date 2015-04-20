@@ -48,7 +48,7 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(connection =>
             {
-                var SecondStorage = new RedisStorage(Redis.ServerInfo, Redis.Storage.Db);
+                var SecondStorage = new RedisStorage(Redis.ServerInfo, new RedisStorageOptions() { Db = Redis.Storage.Db });
                 using (var lock1 = connection.AcquireDistributedLock("some-hash:lock", TimeSpan.FromSeconds(1)))
                 {
                     Assert.Throws<TimeoutException>(() =>

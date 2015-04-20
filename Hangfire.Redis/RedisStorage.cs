@@ -28,38 +28,76 @@ namespace Hangfire.Redis.StackExchange
 {
     public class RedisStorage : JobStorage, IDisposable
     {
-        internal readonly string Prefix;
-        public readonly string StorageLockID = Guid.NewGuid().ToString();
         private const string ClientName = "Hangfire";
         private readonly ConnectionMultiplexer ServerPool;
-        private readonly RedisSubscribe Sub;
         private const string DefaultHost = "localhost";
         private const string DefaultPort = "6379";
-        internal const string DefaultPrefix = "hangfire:";
-        private const int DefaultDatabase = 0;
-
-        public TimeSpan InvisibilityTimeout { get; set; }
-
-        public int Db { get; private set; }
 
         private static Regex reg = new Regex("^Unspecified/", RegexOptions.Compiled);
 
-        public RedisStorage() : this(String.Format("{0}:{1}", DefaultHost, DefaultPort)) {}
-        public RedisStorage(string OptionString) : this(OptionString, DefaultDatabase) {}
-        public RedisStorage(string OptionString, int db) : this(ConfigurationOptions.Parse(OptionString), db, DefaultPrefix) {}
+        private RedisStorageInternals StorageInternals;
+        private FetchedJobsWatcherOptions FetchedJobsOptions;
+        public int Db { get; private set; }
+
+        public string Prefix
+        {
+            get
+            {
+                return StorageInternals.Prefix;
+            }
+        }
+
+        [Obsolete("Please configure with `RedisStorageOptions` instead. Will be removed in version 2.0.0.")]
+        public RedisStorage(string OptionString, int db) : this(ConfigurationOptions.Parse(OptionString), db, RedisStorageOptions.DefaultPrefix) {}
+        [Obsolete("Please configure with `RedisStorageOptions` instead. Will be removed in version 2.0.0.")]
         public RedisStorage(string OptionString, int db, string prefix) : this(ConfigurationOptions.Parse(OptionString), db, prefix) {}
-        public RedisStorage(ConfigurationOptions Options) : this(Options, DefaultDatabase, DefaultPrefix) {}
-        public RedisStorage(ConfigurationOptions Options, int db) : this(Options, db, DefaultPrefix) {}
+        [Obsolete("Please configure with `RedisStorageOptions` instead. Will be removed in version 2.0.0.")]
+        public RedisStorage(ConfigurationOptions Options, int db) : this(Options, db, RedisStorageOptions.DefaultPrefix) { }
+        [Obsolete("Please configure with `RedisStorageOptions` instead. Will be removed in version 2.0.0.")]
         public RedisStorage(ConfigurationOptions Options, int db, string prefix)
         {
             if (Options == null) throw new ArgumentNullException("Options");
-            Prefix = prefix;
+
+            var HangfireOptions = new RedisStorageOptions()
+            {
+                Prefix = prefix
+            };
+
             Db = db;
-            InvisibilityTimeout = TimeSpan.FromMinutes(30);
             Options.AbortOnConnectFail = false;
             Options.ClientName = ClientName;
             ServerPool = ConnectionMultiplexer.Connect(Options);
-            Sub = new RedisSubscribe(ServerPool.GetSubscriber(), Prefix);
+
+            var Sub = new RedisSubscribe(ServerPool.GetSubscriber(), prefix);
+            var LockID = Guid.NewGuid().ToString();
+            StorageInternals = new RedisStorageInternals(prefix, LockID, Sub);
+
+
+
+            FetchedJobsOptions = new FetchedJobsWatcherOptions(HangfireOptions);
+
+        }
+
+        public RedisStorage() : this(String.Format("{0}:{1}", DefaultHost, DefaultPort)) { }
+        public RedisStorage(string OptionString) : this(ConfigurationOptions.Parse(OptionString), new RedisStorageOptions()) { }
+        public RedisStorage(string OptionString, RedisStorageOptions HangfireOptions) : this(ConfigurationOptions.Parse(OptionString), HangfireOptions) { }
+        public RedisStorage(ConfigurationOptions Options) : this(Options, new RedisStorageOptions()) { }
+        public RedisStorage(ConfigurationOptions RedisOptions, RedisStorageOptions HangfireOptions)
+        {
+            if (RedisOptions == null) throw new ArgumentNullException("RedisOptions");
+            if (HangfireOptions == null) throw new ArgumentNullException("HangfireOptions");
+
+            Db = HangfireOptions.Db;
+            RedisOptions.AbortOnConnectFail = false;
+            RedisOptions.ClientName = ClientName;
+            ServerPool = ConnectionMultiplexer.Connect(RedisOptions);
+
+            var Sub = new RedisSubscribe(ServerPool.GetSubscriber(), HangfireOptions.Prefix);
+            var LockID = Guid.NewGuid().ToString();
+            StorageInternals = new RedisStorageInternals(HangfireOptions.Prefix, LockID, Sub);
+            FetchedJobsOptions = new FetchedJobsWatcherOptions(HangfireOptions);
+
+
         }
 
         public override IMonitoringApi GetMonitoringApi()
@@ -72,19 +110,19 @@ namespace Hangfire.Redis.StackExchange
             return ServerPool.GetDatabase(Db);
         }
 
-        public RedisSubscribe GetSubscribe()
+        internal RedisSubscribe GetSubscribe()
         {
-            return Sub;
+            return StorageInternals.Sub;
         }
 
         public override IStorageConnection GetConnection()
         {
-            return new RedisConnection(ServerPool.GetDatabase(Db), Sub, StorageLockID, Prefix);
+            return new RedisConnection(ServerPool.GetDatabase(Db), StorageInternals);
         }
 
         public override IEnumerable<IServerComponent> GetComponents()
         {
-            yield return new FetchedJobsWatcher(this, InvisibilityTimeout, new FetchedJobsWatcherOptions(Prefix));
+            yield return new FetchedJobsWatcher(this, FetchedJobsOptions);
         }
 
         public override IEnumerable<IStateHandler> GetStateHandlers()
@@ -107,7 +145,7 @@ namespace Hangfire.Redis.StackExchange
 
         public void Dispose()
         {
-            Sub.Dispose();
+            StorageInternals.Dispose();
         }
     }
 }

@@ -12,7 +12,10 @@ namespace Hangfire.Redis.StackExchange.Tests
 
 		private RedisFixture Redis;
 		private readonly string Prefix;
-		private static readonly TimeSpan InvisibilityTimeout = TimeSpan.FromSeconds(10);
+        private static readonly FetchedJobsWatcherOptions FetchedOptions = new FetchedJobsWatcherOptions()
+        {
+            InvisibilityTimeout = TimeSpan.FromSeconds(10)
+        };
 
 		private readonly CancellationTokenSource _cts;
 
@@ -28,7 +31,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 		public void Ctor_ThrowsAnException_WhenStorageIsNull()
 		{
 			var exception = Assert.Throws<ArgumentNullException>(
-				() => new FetchedJobsWatcher(null, InvisibilityTimeout));
+				() => new FetchedJobsWatcher(null, new FetchedJobsWatcherOptions()));
 
 			Assert.Equal("storage", exception.ParamName);
 		}
@@ -36,8 +39,8 @@ namespace Hangfire.Redis.StackExchange.Tests
 		[Fact]
 		public void Ctor_ThrowsAnException_WhenInvisibilityTimeoutIsZero()
 		{
-			var exception = Assert.Throws<ArgumentOutOfRangeException>(
-				() => new FetchedJobsWatcher(Redis.Storage, TimeSpan.Zero));
+            var exception = Assert.Throws<ArgumentOutOfRangeException>(
+                () => new FetchedJobsWatcher(Redis.Storage, new FetchedJobsWatcherOptions() { InvisibilityTimeout = TimeSpan.Zero }));
 
 			Assert.Equal("invisibilityTimeout", exception.ParamName);
 		}
@@ -46,7 +49,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 		public void Ctor_ThrowsAnException_WhenInvisibilityTimeoutIsNegative()
 		{
 			var exception = Assert.Throws<ArgumentOutOfRangeException>(
-				() => new FetchedJobsWatcher(Redis.Storage, TimeSpan.FromSeconds(-1)));
+				() => new FetchedJobsWatcher(Redis.Storage, new FetchedJobsWatcherOptions() { InvisibilityTimeout =  TimeSpan.FromSeconds(-1) }));
 
 			Assert.Equal("invisibilityTimeout", exception.ParamName);
 		}
@@ -140,7 +143,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 
 		private FetchedJobsWatcher CreateWatcher()
 		{
-			return new FetchedJobsWatcher(Redis.Storage, InvisibilityTimeout);
+			return new FetchedJobsWatcher(Redis.Storage, FetchedOptions);
 		}
 	}
 }

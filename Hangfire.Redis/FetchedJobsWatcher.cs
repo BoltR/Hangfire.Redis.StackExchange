@@ -25,24 +25,22 @@ namespace Hangfire.Redis.StackExchange
 {
     internal class FetchedJobsWatcher : IServerComponent
     {
-        private readonly TimeSpan _invisibilityTimeout;
         private static readonly ILog Logger = LogProvider.GetCurrentClassLogger();
 
         private readonly JobStorage _storage;
         private readonly FetchedJobsWatcherOptions _options;
 
-        public FetchedJobsWatcher(JobStorage storage, TimeSpan invisibilityTimeout) : this(storage, invisibilityTimeout, new FetchedJobsWatcherOptions()) {}
-        public FetchedJobsWatcher(JobStorage storage, TimeSpan invisibilityTimeout, FetchedJobsWatcherOptions options)
+        public FetchedJobsWatcher(JobStorage storage) : this(storage, new FetchedJobsWatcherOptions()) {}
+        public FetchedJobsWatcher(JobStorage storage, FetchedJobsWatcherOptions options)
         {
             if (storage == null) throw new ArgumentNullException("storage");
             if (options == null) throw new ArgumentNullException("options");
-            if (invisibilityTimeout.Ticks <= 0)
+            if (options.InvisibilityTimeout.Ticks <= 0)
             {
                 throw new ArgumentOutOfRangeException("invisibilityTimeout", "Invisibility timeout duration should be positive.");
             }
 
             _storage = storage;
-            _invisibilityTimeout = invisibilityTimeout;
             _options = options;
         }
 
@@ -152,7 +150,7 @@ namespace Hangfire.Redis.StackExchange
         private bool TimedOutByFetchedTime(string fetchedTimestamp)
         {
             return !String.IsNullOrEmpty(fetchedTimestamp) &&
-                   (DateTime.UtcNow - JobHelper.DeserializeDateTime(fetchedTimestamp) > _invisibilityTimeout);
+                   (DateTime.UtcNow - JobHelper.DeserializeDateTime(fetchedTimestamp) > _options.InvisibilityTimeout);
         }
 
         private bool TimedOutByCheckedTime(string fetchedTimestamp, string checkedTimestamp)

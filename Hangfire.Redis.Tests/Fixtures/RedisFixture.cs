@@ -36,7 +36,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             RedisServer.Start();
 
             var Server = String.Format("{0}:{1}", IP, Port);
-            Storage = new RedisStorage(Server + ",allowAdmin=true", Db);
+            Storage = new RedisStorage(Server + ",allowAdmin=true", new RedisStorageOptions { Db = Db });
             CleanRedisAttribute.Server = Storage.GetDatabase().Multiplexer.GetServer(Server); //Ugly
             CleanRedisAttribute.Db = Db;
 

@@ -23,7 +23,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Hangfire.Redis.StackExchange
 {
@@ -35,12 +34,12 @@ namespace Hangfire.Redis.StackExchange
         private string LockID;
         private readonly string Prefix;
 
-        public RedisConnection(IDatabase redis, RedisSubscribe sub, string StorageLockID, string prefix)
+        public RedisConnection(IDatabase redis, RedisStorageInternals StorageInternals)
         {
             Redis = redis;
-            Sub = sub;
-            LockID = StorageLockID;
-            Prefix = prefix;
+            Sub = StorageInternals.Sub;
+            LockID = StorageInternals.StorageLockID;
+            Prefix = StorageInternals.Prefix;
         }
 
         public override void Dispose()

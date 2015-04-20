@@ -397,7 +397,7 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             UseConnection(redis =>
             {
-                var SecondStorage = new RedisStorage(Redis.ServerInfo, Redis.Storage.Db, "test:");
+                var SecondStorage = new RedisStorage(Redis.ServerInfo, new RedisStorageOptions { Db = Redis.Storage.Db, Prefix = "test:" });
                 var SecondConnection = SecondStorage.GetDatabase();
                 Commit(redis, x => x.InsertToList("some-list", "value"));
                 var transaction = new RedisWriteOnlyTransaction(SecondConnection.CreateTransaction(), SecondStorage.GetSubscribe(), SecondStorage.Prefix);
