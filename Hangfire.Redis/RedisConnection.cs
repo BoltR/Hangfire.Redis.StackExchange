@@ -204,13 +204,14 @@ namespace Hangfire.Redis.StackExchange
 
             if (entries.Count == 0) return null;
 
+            var state = Redis.HashGet(Prefix + String.Format("job:{0}", jobId), "State");
+
             var stateData = new Dictionary<string, string>(entries);
-            stateData.Remove("State");
             stateData.Remove("Reason");
 
             return new StateData
             {
-                Name = entries.ContainsKey("State") ? entries["State"] : null,
+                Name = state == RedisValue.Null ? null : (string)state,
                 Reason = entries.ContainsKey("Reason") ? entries["Reason"] : null,
                 Data = stateData
             };

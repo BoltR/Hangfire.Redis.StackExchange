@@ -216,10 +216,11 @@ namespace Hangfire.Redis.StackExchange.Tests
                     Prefix + "job:my-job:state",
                     new HashEntry[]
                     {
-                        new HashEntry("State", "Name"),
                         new HashEntry("Reason", "Reason"),
                         new HashEntry("Key", "Value")
                     });
+
+                redis.HashSet(Prefix + "job:my-job", "State", "Name");
 
                 var result = connection.GetStateData("my-job");
 
