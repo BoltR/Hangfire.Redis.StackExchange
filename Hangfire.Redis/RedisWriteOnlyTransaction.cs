@@ -84,6 +84,7 @@ namespace Hangfire.Redis.StackExchange
             Transaction.KeyDeleteAsync(String.Format(Prefix + "job:{0}:state", jobId));
 
             var Serialized = new Dictionary<string,string>(state.SerializeData());
+            Serialized.Add("State", state.Name);
             if (state.Reason != null)
             {
                 Serialized.Add("Reason", state.Reason);

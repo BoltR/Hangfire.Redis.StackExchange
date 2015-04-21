@@ -76,14 +76,14 @@ namespace Hangfire.Redis.StackExchange
 
                 return new JobList<ProcessingJobDto>(GetJobsWithProperties(redis,
                     jobIds,
-                    new RedisValue[] { "State" },
-                    new RedisValue[] { "StartedAt", "ServerName", "ServerId" },
+                    null,
+                    new RedisValue[] { "StartedAt", "ServerName", "ServerId", "State" },
                     (job, jobData, state) => new ProcessingJobDto
                     {
                         ServerId = state[2] ?? state[1],
                         Job = job,
                         StartedAt = JobHelper.DeserializeNullableDateTime(state[0]),
-                        InProcessingState = ProcessingState.StateName.Equals(jobData[0], StringComparison.OrdinalIgnoreCase),
+                        InProcessingState = ProcessingState.StateName.Equals(state[3], StringComparison.OrdinalIgnoreCase),
                     }).OrderBy(x => x.Value.StartedAt).ToList());
             });
         }
@@ -203,8 +203,8 @@ namespace Hangfire.Redis.StackExchange
                 return GetJobsWithProperties(
                     redis,
                     failedJobIds,
-                    new RedisValue[] { "State" },
-                    new RedisValue[] { "FailedAt", "ExceptionType", "ExceptionMessage", "ExceptionDetails", "Reason" },
+                    null,
+                    new RedisValue[] { "FailedAt", "ExceptionType", "ExceptionMessage", "ExceptionDetails", "Reason", "State" },
                     (job, jobData, state) => new FailedJobDto
                     {
                         Job = job,
@@ -213,7 +213,7 @@ namespace Hangfire.Redis.StackExchange
                         ExceptionType = state[1],
                         ExceptionMessage = state[2],
                         ExceptionDetails = state[3],
-                        InFailedState = FailedState.StateName.Equals(jobData[0], StringComparison.OrdinalIgnoreCase)
+                        InFailedState = FailedState.StateName.Equals(state[5], StringComparison.OrdinalIgnoreCase)
                     });
             });
         }
@@ -230,8 +230,8 @@ namespace Hangfire.Redis.StackExchange
                 return GetJobsWithProperties(
                     redis,
                     succeededJobIds,
-                    new RedisValue[] { "State" },
-                    new RedisValue[] { "SucceededAt", "PerformanceDuration", "Latency", "Result" },
+                    null,
+                    new RedisValue[] { "SucceededAt", "PerformanceDuration", "Latency", "Result", "State", },
                     (job, jobData, state) => new SucceededJobDto
                     {
                         Job = job,
@@ -240,7 +240,7 @@ namespace Hangfire.Redis.StackExchange
                         TotalDuration = state[1] != null && state[2] != null
                             ? (long?) long.Parse(state[1]) + (long?) long.Parse(state[2])
                             : null,
-                        InSucceededState = SucceededState.StateName.Equals(jobData[0], StringComparison.OrdinalIgnoreCase)
+                        InSucceededState = SucceededState.StateName.Equals(state[4], StringComparison.OrdinalIgnoreCase)
                     });
             });
         }
@@ -257,13 +257,13 @@ namespace Hangfire.Redis.StackExchange
                 return GetJobsWithProperties(
                     redis,
                     deletedJobIds,
-                    new RedisValue[] { "State" },
-                    new RedisValue[] { "DeletedAt" },
+                    null,
+                    new RedisValue[] { "DeletedAt", "State" },
                     (job, jobData, state) => new DeletedJobDto
                     {
                         Job = job,
                         DeletedAt = JobHelper.DeserializeNullableDateTime(state[0]),
-                        InDeletedState = DeletedState.StateName.Equals(jobData[0], StringComparison.OrdinalIgnoreCase)
+                        InDeletedState = DeletedState.StateName.Equals(state[1], StringComparison.OrdinalIgnoreCase)
                     });
             });
         }

@@ -12,17 +12,17 @@ namespace Hangfire.Redis.StackExchange.Tests
 
 		private RedisFixture Redis;
 		private readonly string Prefix;
-        private static readonly FetchedJobsWatcherOptions FetchedOptions = new FetchedJobsWatcherOptions()
-        {
-            InvisibilityTimeout = TimeSpan.FromSeconds(10)
-        };
+		private static readonly FetchedJobsWatcherOptions FetchedOptions = new FetchedJobsWatcherOptions()
+		{
+			InvisibilityTimeout = TimeSpan.FromSeconds(10)
+		};
 
 		private readonly CancellationTokenSource _cts;
 
 		public FetchedJobsWatcherFacts(RedisFixture Redis)
 		{
 			this.Redis = Redis;
-            Prefix = Redis.Storage.Prefix;
+			Prefix = Redis.Storage.Prefix;
 			_cts = new CancellationTokenSource();
 			_cts.Cancel();
 		}
@@ -39,8 +39,8 @@ namespace Hangfire.Redis.StackExchange.Tests
 		[Fact]
 		public void Ctor_ThrowsAnException_WhenInvisibilityTimeoutIsZero()
 		{
-            var exception = Assert.Throws<ArgumentOutOfRangeException>(
-                () => new FetchedJobsWatcher(Redis.Storage, new FetchedJobsWatcherOptions() { InvisibilityTimeout = TimeSpan.Zero }));
+			var exception = Assert.Throws<ArgumentOutOfRangeException>(
+				() => new FetchedJobsWatcher(Redis.Storage, new FetchedJobsWatcherOptions() { InvisibilityTimeout = TimeSpan.Zero }));
 
 			Assert.Equal("invisibilityTimeout", exception.ParamName);
 		}
