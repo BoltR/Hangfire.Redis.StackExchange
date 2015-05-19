@@ -28,6 +28,22 @@ namespace Hangfire.Redis.StackExchange.Tests
 		}
 
 		[Fact]
+		public void CheckDefaultConstructor()
+		{
+			var watcher = new FetchedJobsWatcher(Redis.Storage);
+
+			var redis = Redis.Storage.GetDatabase();
+			// Arrange
+			redis.SetAdd(Prefix + "queues", "my-queue", 0);
+			redis.ListLeftPush(Prefix + "queue:my-queue:dequeued", "my-job");
+
+			watcher.Execute(_cts.Token);
+
+			Assert.NotNull(JobHelper.DeserializeNullableDateTime(
+				redis.HashGet(Prefix + "job:my-job", "Checked")));
+		}
+
+		[Fact]
 		public void Ctor_ThrowsAnException_WhenStorageIsNull()
 		{
 			var exception = Assert.Throws<ArgumentNullException>(

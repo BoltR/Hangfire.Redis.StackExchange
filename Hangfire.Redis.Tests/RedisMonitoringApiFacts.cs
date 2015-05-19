@@ -116,7 +116,43 @@ namespace Hangfire.Redis.StackExchange.Tests
             Assert.Equal(0, p.Count);
         }
 
-        [Fact, CleanRedis]
+		[Fact, CleanRedis]
+		public void SucceededByDatesCount()
+		{
+			var SucceededTime = DateTime.UtcNow;
+			UseRedis(redis =>
+			{
+				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd"));
+				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd"));
+				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd"));
+				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.AddDays(-2).ToString("yyyy-MM-dd"));
+			});
+
+			var p = Monitor.SucceededByDatesCount();
+			Assert.Equal(8, p.Count);
+			Assert.Equal(3, p.Sum(x => x.Value));
+			Assert.Equal(2, p.First().Value); //Today
+		}
+
+		[Fact, CleanRedis]
+		public void FailedByDatesCount()
+		{
+			var SucceededTime = DateTime.UtcNow;
+			UseRedis(redis =>
+			{
+				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd"));
+				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd"));
+				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd"));
+				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.AddDays(-2).ToString("yyyy-MM-dd"));
+			});
+
+			var p = Monitor.FailedByDatesCount();
+			Assert.Equal(8, p.Count);
+			Assert.Equal(3, p.Sum(x => x.Value));
+			Assert.Equal(2, p.First().Value); //Today
+		}
+
+		[Fact, CleanRedis]
         public void FailedJobs()
         {
             var FailedAt = DateTime.UtcNow;
@@ -143,7 +179,43 @@ namespace Hangfire.Redis.StackExchange.Tests
             Assert.Equal(FailedAt, Failed[0].Value.FailedAt);
         }
 
-        [Fact, CleanRedis]
+		[Fact, CleanRedis]
+		public void HourlySucceededJobs()
+		{
+			var SucceededTime = DateTime.UtcNow;
+			UseRedis(redis =>
+			{
+				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.AddHours(-2).ToString("yyyy-MM-dd-HH"));
+			});
+
+			var p = Monitor.HourlySucceededJobs();
+			Assert.Equal(24, p.Count);
+			Assert.Equal(3, p.Sum(x => x.Value));
+			Assert.Equal(2, p.First().Value); //Today
+		}
+
+		[Fact, CleanRedis]
+		public void HourlyFailedJobs()
+		{
+			var SucceededTime = DateTime.UtcNow;
+			UseRedis(redis =>
+			{
+				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.AddHours(-2).ToString("yyyy-MM-dd-HH"));
+			});
+
+			var p = Monitor.HourlyFailedJobs();
+			Assert.Equal(24, p.Count);
+			Assert.Equal(3, p.Sum(x => x.Value));
+			Assert.Equal(2, p.First().Value); //Today
+		}
+
+		[Fact, CleanRedis]
         public void DeletedJobs()
         {
             var DeletedTime = DateTime.UtcNow;
@@ -166,6 +238,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 
             Assert.Equal(1, Monitor.DeletedListCount());
         }
+
 
         [Fact, CleanRedis]
         public void SucceededJobs()
