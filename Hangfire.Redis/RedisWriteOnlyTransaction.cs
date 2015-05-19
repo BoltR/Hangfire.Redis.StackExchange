@@ -107,7 +107,7 @@ namespace Hangfire.Redis.StackExchange
 
         public void AddToQueue(string queue, string jobId)
         {
-            Transaction.SetAddAsync(Prefix + "queues", queue);
+            Transaction.SortedSetAddAsync(Prefix + "queues", queue, 0);
             Transaction.ListLeftPushAsync(String.Format(Prefix + "queue:{0}", queue), jobId);
             _sub.AnnounceJob();
         }

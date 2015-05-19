@@ -48,7 +48,7 @@ namespace Hangfire.Redis.StackExchange
         {
             using (var connection = (RedisConnection)_storage.GetConnection())
             {
-                var queues = connection.Redis.SetMembers(_options.Prefix + "queues");
+                var queues = connection.Redis.SortedSetRangeByScore(_options.Prefix + "queues");
 
                 foreach (var queue in queues)
                 {
