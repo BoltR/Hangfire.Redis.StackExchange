@@ -168,7 +168,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             {
                 Commit(redis, x => x.AddToQueue("critical", "my-job"));
 
-                Assert.Equal(0, redis.SortedSetRank(Prefix + "queues", "critical"));
+                Assert.True(redis.SetContains(Prefix + "queues", "critical"));
                 Assert.Equal("my-job", redis.ListGetByIndex(Prefix + "queue:critical", 0));
             });
         }

@@ -272,7 +272,7 @@ namespace Hangfire.Redis.StackExchange
         {
             return UseConnection(redis =>
             {
-                var queues = redis.SortedSetRangeByScore(Redis.Prefix + "queues");
+                var queues = redis.SetMembers(Redis.Prefix + "queues");
                 var result = new List<QueueWithTopEnqueuedJobsDto>(queues.Length);
 
                 foreach (var queue in queues)
@@ -546,12 +546,12 @@ namespace Hangfire.Redis.StackExchange
             {
                 var stats = new StatisticsDto();
 
-                var queues = redis.SortedSetRangeByScore(Redis.Prefix + "queues");
+                var queues = redis.SetMembers(Redis.Prefix + "queues");
                 var Tasks = new Task[queues.Length + 8];
 
                 var batch = redis.CreateBatch();
                 Tasks[0] = batch.SetLengthAsync(Redis.Prefix + "servers").ContinueWith(x => stats.Servers = x.Result);
-                Tasks[1] = batch.SortedSetLengthAsync(Redis.Prefix + "queues").ContinueWith(x => stats.Queues = x.Result);
+                Tasks[1] = batch.SetLengthAsync(Redis.Prefix + "queues").ContinueWith(x => stats.Queues = x.Result);
                 Tasks[2] = batch.SortedSetLengthAsync(Redis.Prefix + "schedule").ContinueWith(x => stats.Scheduled = x.Result);
                 Tasks[3] = batch.SortedSetLengthAsync(Redis.Prefix + "processing").ContinueWith(x => stats.Processing = x.Result);
                 Tasks[4] = batch.StringGetAsync(Redis.Prefix + "stats:succeeded").ContinueWith(x => stats.Succeeded = long.Parse(x.Result == RedisValue.Null ? "0" : (string)x.Result));

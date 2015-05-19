@@ -1,8 +1,5 @@
 ﻿using Hangfire.Common;
-using NSubstitute;
-using Owin;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Xunit;
@@ -28,22 +25,6 @@ namespace Hangfire.Redis.StackExchange.Tests
 			Prefix = Redis.Storage.Prefix;
 			_cts = new CancellationTokenSource();
 			_cts.Cancel();
-		}
-
-		[Fact]
-		public void CheckDefaultConstructor()
-		{
-			var watcher = new FetchedJobsWatcher(Redis.Storage);
-
-			var redis = Redis.Storage.GetDatabase();
-			// Arrange
-			redis.SortedSetAdd(Prefix + "queues", "my-queue", 0);
-			redis.ListLeftPush(Prefix + "queue:my-queue:dequeued", "my-job");
-
-			watcher.Execute(_cts.Token);
-
-			Assert.NotNull(JobHelper.DeserializeNullableDateTime(
-				redis.HashGet(Prefix + "job:my-job", "Checked")));
 		}
 
 		[Fact]
@@ -78,7 +59,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 		{
 			var redis = Redis.Storage.GetDatabase();
 			// Arrange
-			redis.SortedSetAdd(Prefix + "queues", "my-queue", 0);
+			redis.SetAdd(Prefix + "queues", "my-queue");
 			redis.ListLeftPush(Prefix + "queue:my-queue:dequeued", "my-job");
 			redis.HashSet(Prefix + "job:my-job", "Fetched",
 				JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-1)));
@@ -103,7 +84,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 		{
 			var redis = Redis.Storage.GetDatabase();
 			// Arrange
-			redis.SortedSetAdd(Prefix + "queues", "my-queue", 0);
+			redis.SetAdd(Prefix + "queues", "my-queue");
 			redis.ListLeftPush(Prefix + "queue:my-queue:dequeued", "my-job");
 
 			var watcher = CreateWatcher();
@@ -120,7 +101,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 		{
 			var redis = Redis.Storage.GetDatabase();
 			// Arrange
-			redis.SortedSetAdd(Prefix + "queues", "my-queue", 0);
+			redis.SetAdd(Prefix + "queues", "my-queue");
 			redis.ListLeftPush(Prefix + "queue:my-queue:dequeued", "my-job");
 			redis.HashSet(Prefix + "job:my-job", "Checked",
 				JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-1)));
@@ -143,7 +124,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 		{
 			var redis = Redis.Storage.GetDatabase();
 			// Arrange
-			redis.SortedSetAdd(Prefix + "queues", "my-queue", 0);
+			redis.SetAdd(Prefix + "queues", "my-queue");
 			redis.ListLeftPush(Prefix + "queue:my-queue:dequeued", "my-job");
 			redis.HashSet(Prefix + "job:my-job", "Checked",
 				JobHelper.SerializeDateTime(DateTime.UtcNow.AddDays(-1)));
@@ -158,41 +139,6 @@ namespace Hangfire.Redis.StackExchange.Tests
 			// Assert
 			Assert.Equal(1, redis.ListLength(Prefix + "queue:my-queue:dequeued"));
 
-		}
-
-		[Fact, CleanRedis]
-		public void MultiQueueOrdering()
-		{
-			using (var canceltoken = new CancellationTokenSource())
-			{
-				var properties = new Dictionary<string, object> { { "host.OnAppDisposing", canceltoken.Token } };
-				var app = Substitute.For<IAppBuilder>();
-				app.Properties.Returns(properties);
-
-				var redisoptions = new RedisStorageOptions()
-				{
-					Db = Redis.Storage.Db,
-					Prefix = Redis.Storage.Prefix
-				};
-				GlobalConfiguration.Configuration.UseRedisStorage(Redis.ServerInfo, redisoptions);
-
-				var options = new BackgroundJobServerOptions
-				{
-					Queues = new string[] { "critical", "important", "default" }
-				};
-
-				using (new BackgroundJobServer(options, Redis.Storage))
-				{
-					BackgroundJob.Enqueue<Jobs>(x => x.Critical());
-					BackgroundJob.Enqueue<Jobs>(x => x.Default());
-
-					var conn = Redis.Storage.GetDatabase();
-					var queues = conn.SortedSetRangeByScore("hangfire:queues");
-					Assert.Equal("critical", queues[0]);
-					Assert.Equal("default", queues[1]);
-					Assert.Throws<IndexOutOfRangeException>(() => queues[2]);
-				}
-			}
 		}
 
 		private FetchedJobsWatcher CreateWatcher()
