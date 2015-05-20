@@ -87,6 +87,7 @@ namespace Hangfire.Redis.StackExchange
                 }
                 else
                 {
+					connection.Sub.AnnounceJob();
                     Logger.InfoFormat(
                         "{0} timed out jobs were found in the '{1}' queue and re-queued.",
                         requeued,
