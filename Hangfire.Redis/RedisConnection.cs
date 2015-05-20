@@ -53,27 +53,30 @@ namespace Hangfire.Redis.StackExchange
 
 		public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
 		{
-			string jobId;
-			string queueName;
-			var queueIndex = 0;
-
+			string jobId = null;
+			string queueName = null;
 			do
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				queueName = queues[queueIndex];
-				queueIndex = (queueIndex + 1) % queues.Length;
+				//Always assume there is a job in queue for first run
 
-				var queueKey = Prefix + String.Format("queue:{0}", queueName);
-				var fetchedKey = Prefix + String.Format("queue:{0}:dequeued", queueName);
+				for (int i = 0; i < queues.Length; i++)
+				{
+					queueName = queues[i];
+					var queueKey = Prefix + String.Format("queue:{0}", queueName);
+					var fetchedKey = Prefix + String.Format("queue:{0}:dequeued", queueName);
 
-				//Always assume that there might be a job to do on first check
-				jobId = Redis.ListRightPopLeftPush(queueKey, fetchedKey);
+					jobId = Redis.ListRightPopLeftPush(queueKey, fetchedKey);
+					if (jobId != null)
+					{
+						break;
+					}
+				}
 
 				if (jobId == null)
 				{
 					Sub.WaitForJob(cancellationToken);
-					jobId = Redis.ListRightPopLeftPush(queueKey, fetchedKey);
 					Sub.JobClaimed();
 				}
 			} while (jobId == null);
@@ -394,5 +397,5 @@ namespace Hangfire.Redis.StackExchange
 
             return Prefix + key;
         }
-    }
+	}
 }
