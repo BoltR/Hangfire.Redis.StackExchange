@@ -1,10 +1,10 @@
 ﻿using Hangfire.Common;
 using StackExchange.Redis;
 using System;
-using System.Reflection;
 using System.Linq;
 using Xunit;
 using System.Linq.Expressions;
+using System.Collections.Generic;
 
 namespace Hangfire.Redis.StackExchange.Tests
 {
@@ -67,16 +67,54 @@ namespace Hangfire.Redis.StackExchange.Tests
 
                 redis.HashSet(String.Format(Prefix + "job:{0}", 1), FunctionToHashEntry(() => Console.WriteLine("Test")));
 
-                redis.HashSet(String.Format(Prefix + "job:{0}", 1), "CreatedAt", JobHelper.SerializeDateTime(CreatedAt));
 
-                //TODO: Add history
-            });
+				var SerializedCreated = JobHelper.SerializeDateTime(CreatedAt);
+
+				redis.HashSet(String.Format(Prefix + "job:{0}", 1), "CreatedAt", SerializedCreated);
+
+
+				var HistoryItem = new Dictionary<string, string>()
+				{
+					{ "EnqueuedAt" ,"2015-05-20T16:02:53.1060098Z" },
+					{ "Queue", "default" },
+					{ "State", "Enqueued" },
+					{ "Reason", null },
+					{ "CreatedAt", SerializedCreated }
+				};
+				redis.ListRightPush(String.Format(Prefix + "job:{0}:history", 1), JobHelper.ToJson(HistoryItem));
+
+				HistoryItem = new Dictionary<string, string>()
+				{
+					{ "StartedAt", JobHelper.SerializeDateTime(CreatedAt.AddMilliseconds(30)) },
+					{ "ServerId", Redis.ServerInfo },
+					{ "WorkerNumber", "2" },
+					{ "State", "Processing" },
+					{ "Reason", null },
+					{ "CreatedAt", SerializedCreated}
+				};
+				redis.ListRightPush(String.Format(Prefix + "job:{0}:history", 1), JobHelper.ToJson(HistoryItem));
+
+				HistoryItem = new Dictionary<string, string>()
+				{
+					{ "SucceededAt", JobHelper.SerializeDateTime(CreatedAt.AddMilliseconds(40)) },
+					{ "PerformanceDuration", "10" },
+					{ "Latency", "5" },
+					{ "State", "Succeeded" },
+					{ "Reason", null },
+					{ "CreatedAt", SerializedCreated}
+				};
+				redis.ListRightPush(String.Format(Prefix + "job:{0}:history", 1), JobHelper.ToJson(HistoryItem));
+			});
 
             var Job = Monitor.JobDetails("1");
 
             Assert.Equal(CreatedAt, Job.CreatedAt);
             Assert.Equal("Console", Job.Job.Type.Name);
             Assert.Equal(@"""Test""", Job.Job.Arguments[0]);
+
+			Assert.Equal(3, Job.History.Count);
+			Assert.Equal("Enqueued", Job.History[0].StateName);
+			Assert.Equal(CreatedAt, Job.History[2].CreatedAt);
 
         }
 
