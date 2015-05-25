@@ -68,43 +68,43 @@ namespace Hangfire.Redis.StackExchange.Tests
                 redis.HashSet(String.Format(Prefix + "job:{0}", 1), FunctionToHashEntry(() => Console.WriteLine("Test")));
 
 
-				var SerializedCreated = JobHelper.SerializeDateTime(CreatedAt);
+                var SerializedCreated = JobHelper.SerializeDateTime(CreatedAt);
 
-				redis.HashSet(String.Format(Prefix + "job:{0}", 1), "CreatedAt", SerializedCreated);
+                redis.HashSet(String.Format(Prefix + "job:{0}", 1), "CreatedAt", SerializedCreated);
 
 
-				var HistoryItem = new Dictionary<string, string>()
-				{
-					{ "EnqueuedAt" ,"2015-05-20T16:02:53.1060098Z" },
-					{ "Queue", "default" },
-					{ "State", "Enqueued" },
-					{ "Reason", null },
-					{ "CreatedAt", SerializedCreated }
-				};
-				redis.ListRightPush(String.Format(Prefix + "job:{0}:history", 1), JobHelper.ToJson(HistoryItem));
+                var HistoryItem = new Dictionary<string, string>()
+                {
+                    { "EnqueuedAt" ,"2015-05-20T16:02:53.1060098Z" },
+                    { "Queue", "default" },
+                    { "State", "Enqueued" },
+                    { "Reason", null },
+                    { "CreatedAt", SerializedCreated }
+                };
+                redis.ListRightPush(String.Format(Prefix + "job:{0}:history", 1), JobHelper.ToJson(HistoryItem));
 
-				HistoryItem = new Dictionary<string, string>()
-				{
-					{ "StartedAt", JobHelper.SerializeDateTime(CreatedAt.AddMilliseconds(30)) },
-					{ "ServerId", Redis.ServerInfo },
-					{ "WorkerNumber", "2" },
-					{ "State", "Processing" },
-					{ "Reason", null },
-					{ "CreatedAt", SerializedCreated}
-				};
-				redis.ListRightPush(String.Format(Prefix + "job:{0}:history", 1), JobHelper.ToJson(HistoryItem));
+                HistoryItem = new Dictionary<string, string>()
+                {
+                    { "StartedAt", JobHelper.SerializeDateTime(CreatedAt.AddMilliseconds(30)) },
+                    { "ServerId", Redis.ServerInfo },
+                    { "WorkerNumber", "2" },
+                    { "State", "Processing" },
+                    { "Reason", null },
+                    { "CreatedAt", SerializedCreated}
+                };
+                redis.ListRightPush(String.Format(Prefix + "job:{0}:history", 1), JobHelper.ToJson(HistoryItem));
 
-				HistoryItem = new Dictionary<string, string>()
-				{
-					{ "SucceededAt", JobHelper.SerializeDateTime(CreatedAt.AddMilliseconds(40)) },
-					{ "PerformanceDuration", "10" },
-					{ "Latency", "5" },
-					{ "State", "Succeeded" },
-					{ "Reason", null },
-					{ "CreatedAt", SerializedCreated}
-				};
-				redis.ListRightPush(String.Format(Prefix + "job:{0}:history", 1), JobHelper.ToJson(HistoryItem));
-			});
+                HistoryItem = new Dictionary<string, string>()
+                {
+                    { "SucceededAt", JobHelper.SerializeDateTime(CreatedAt.AddMilliseconds(40)) },
+                    { "PerformanceDuration", "10" },
+                    { "Latency", "5" },
+                    { "State", "Succeeded" },
+                    { "Reason", null },
+                    { "CreatedAt", SerializedCreated}
+                };
+                redis.ListRightPush(String.Format(Prefix + "job:{0}:history", 1), JobHelper.ToJson(HistoryItem));
+            });
 
             var Job = Monitor.JobDetails("1");
 
@@ -112,9 +112,9 @@ namespace Hangfire.Redis.StackExchange.Tests
             Assert.Equal("Console", Job.Job.Type.Name);
             Assert.Equal(@"""Test""", Job.Job.Arguments[0]);
 
-			Assert.Equal(3, Job.History.Count);
-			Assert.Equal("Enqueued", Job.History[0].StateName);
-			Assert.Equal(CreatedAt, Job.History[2].CreatedAt);
+            Assert.Equal(3, Job.History.Count);
+            Assert.Equal("Enqueued", Job.History[0].StateName);
+            Assert.Equal(CreatedAt, Job.History[2].CreatedAt);
 
         }
 
@@ -154,43 +154,43 @@ namespace Hangfire.Redis.StackExchange.Tests
             Assert.Equal(0, p.Count);
         }
 
-		[Fact, CleanRedis]
-		public void SucceededByDatesCount()
-		{
-			var SucceededTime = DateTime.UtcNow;
-			UseRedis(redis =>
-			{
-				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd"));
-				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd"));
-				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd"));
-				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.AddDays(-2).ToString("yyyy-MM-dd"));
-			});
+        [Fact, CleanRedis]
+        public void SucceededByDatesCount()
+        {
+            var SucceededTime = DateTime.UtcNow;
+            UseRedis(redis =>
+            {
+                redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd"));
+                redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd"));
+                redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd"));
+                redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.AddDays(-2).ToString("yyyy-MM-dd"));
+            });
 
-			var p = Monitor.SucceededByDatesCount();
-			Assert.Equal(8, p.Count);
-			Assert.Equal(3, p.Sum(x => x.Value));
-			Assert.Equal(2, p.First().Value); //Today
-		}
+            var p = Monitor.SucceededByDatesCount();
+            Assert.Equal(8, p.Count);
+            Assert.Equal(3, p.Sum(x => x.Value));
+            Assert.Equal(2, p.First().Value); //Today
+        }
 
-		[Fact, CleanRedis]
-		public void FailedByDatesCount()
-		{
-			var SucceededTime = DateTime.UtcNow;
-			UseRedis(redis =>
-			{
-				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd"));
-				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd"));
-				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd"));
-				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.AddDays(-2).ToString("yyyy-MM-dd"));
-			});
+        [Fact, CleanRedis]
+        public void FailedByDatesCount()
+        {
+            var SucceededTime = DateTime.UtcNow;
+            UseRedis(redis =>
+            {
+                redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd"));
+                redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd"));
+                redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd"));
+                redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.AddDays(-2).ToString("yyyy-MM-dd"));
+            });
 
-			var p = Monitor.FailedByDatesCount();
-			Assert.Equal(8, p.Count);
-			Assert.Equal(3, p.Sum(x => x.Value));
-			Assert.Equal(2, p.First().Value); //Today
-		}
+            var p = Monitor.FailedByDatesCount();
+            Assert.Equal(8, p.Count);
+            Assert.Equal(3, p.Sum(x => x.Value));
+            Assert.Equal(2, p.First().Value); //Today
+        }
 
-		[Fact, CleanRedis]
+        [Fact, CleanRedis]
         public void FailedJobs()
         {
             var FailedAt = DateTime.UtcNow;
@@ -217,43 +217,43 @@ namespace Hangfire.Redis.StackExchange.Tests
             Assert.Equal(FailedAt, Failed[0].Value.FailedAt);
         }
 
-		[Fact, CleanRedis]
-		public void HourlySucceededJobs()
-		{
-			var SucceededTime = DateTime.UtcNow;
-			UseRedis(redis =>
-			{
-				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
-				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
-				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
-				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.AddHours(-2).ToString("yyyy-MM-dd-HH"));
-			});
+        [Fact, CleanRedis]
+        public void HourlySucceededJobs()
+        {
+            var SucceededTime = DateTime.UtcNow;
+            UseRedis(redis =>
+            {
+                redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+                redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+                redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+                redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.AddHours(-2).ToString("yyyy-MM-dd-HH"));
+            });
 
-			var p = Monitor.HourlySucceededJobs();
-			Assert.Equal(24, p.Count);
-			Assert.Equal(3, p.Sum(x => x.Value));
-			Assert.Equal(2, p.First().Value); //Today
-		}
+            var p = Monitor.HourlySucceededJobs();
+            Assert.Equal(24, p.Count);
+            Assert.Equal(3, p.Sum(x => x.Value));
+            Assert.Equal(2, p.First().Value); //Today
+        }
 
-		[Fact, CleanRedis]
-		public void HourlyFailedJobs()
-		{
-			var SucceededTime = DateTime.UtcNow;
-			UseRedis(redis =>
-			{
-				redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
-				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
-				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
-				redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.AddHours(-2).ToString("yyyy-MM-dd-HH"));
-			});
+        [Fact, CleanRedis]
+        public void HourlyFailedJobs()
+        {
+            var SucceededTime = DateTime.UtcNow;
+            UseRedis(redis =>
+            {
+                redis.StringIncrement(Prefix + "stats:succeeded:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+                redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+                redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.ToString("yyyy-MM-dd-HH"));
+                redis.StringIncrement(Prefix + "stats:failed:" + SucceededTime.AddHours(-2).ToString("yyyy-MM-dd-HH"));
+            });
 
-			var p = Monitor.HourlyFailedJobs();
-			Assert.Equal(24, p.Count);
-			Assert.Equal(3, p.Sum(x => x.Value));
-			Assert.Equal(2, p.First().Value); //Today
-		}
+            var p = Monitor.HourlyFailedJobs();
+            Assert.Equal(24, p.Count);
+            Assert.Equal(3, p.Sum(x => x.Value));
+            Assert.Equal(2, p.First().Value); //Today
+        }
 
-		[Fact, CleanRedis]
+        [Fact, CleanRedis]
         public void DeletedJobs()
         {
             var DeletedTime = DateTime.UtcNow;

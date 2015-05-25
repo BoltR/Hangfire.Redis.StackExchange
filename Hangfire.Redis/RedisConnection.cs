@@ -51,58 +51,58 @@ namespace Hangfire.Redis.StackExchange
             return new RedisWriteOnlyTransaction(Redis.CreateTransaction(), Sub, Prefix);
         }
 
-		public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
-		{
-			string jobId = null;
-			string queueName = null;
-			do
-			{
-				cancellationToken.ThrowIfCancellationRequested();
+        public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
+        {
+            string jobId = null;
+            string queueName = null;
+            do
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-				//Always assume there is a job in queue for first run
+                //Always assume there is a job in queue for first run
 
-				for (int i = 0; i < queues.Length; i++)
-				{
-					queueName = queues[i];
-					var queueKey = Prefix + String.Format("queue:{0}", queueName);
-					var fetchedKey = Prefix + String.Format("queue:{0}:dequeued", queueName);
+                for (int i = 0; i < queues.Length; i++)
+                {
+                    queueName = queues[i];
+                    var queueKey = Prefix + String.Format("queue:{0}", queueName);
+                    var fetchedKey = Prefix + String.Format("queue:{0}:dequeued", queueName);
 
-					jobId = Redis.ListRightPopLeftPush(queueKey, fetchedKey);
-					if (jobId != null)
-					{
-						break;
-					}
-				}
+                    jobId = Redis.ListRightPopLeftPush(queueKey, fetchedKey);
+                    if (jobId != null)
+                    {
+                        break;
+                    }
+                }
 
-				if (jobId == null)
-				{
-					Sub.WaitForJob(cancellationToken);
-					Sub.JobClaimed();
-				}
-			} while (jobId == null);
+                if (jobId == null)
+                {
+                    Sub.WaitForJob(cancellationToken);
+                    Sub.JobClaimed();
+                }
+            } while (jobId == null);
 
-			// The job was fetched by the server. To provide reliability,
-			// we should ensure, that the job will be performed and acquired
-			// resources will be disposed even if the server will crash 
-			// while executing one of the subsequent lines of code.
+            // The job was fetched by the server. To provide reliability,
+            // we should ensure, that the job will be performed and acquired
+            // resources will be disposed even if the server will crash 
+            // while executing one of the subsequent lines of code.
 
-			// The job's processing is splitted into a couple of checkpoints.
-			// Each checkpoint occurs after successful update of the 
-			// job information in the storage. And each checkpoint describes
-			// the way to perform the job when the server was crashed after
-			// reaching it.
+            // The job's processing is splitted into a couple of checkpoints.
+            // Each checkpoint occurs after successful update of the 
+            // job information in the storage. And each checkpoint describes
+            // the way to perform the job when the server was crashed after
+            // reaching it.
 
-			// Checkpoint #1-1. The job was fetched into the fetched list,
-			// that is being inspected by the FetchedJobsWatcher instance.
-			// Job's has the implicit 'Fetched' state.
-			Redis.HashSet(String.Format(Prefix + "job:{0}", jobId), "Fetched", JobHelper.SerializeDateTime(DateTime.UtcNow));
+            // Checkpoint #1-1. The job was fetched into the fetched list,
+            // that is being inspected by the FetchedJobsWatcher instance.
+            // Job's has the implicit 'Fetched' state.
+            Redis.HashSet(String.Format(Prefix + "job:{0}", jobId), "Fetched", JobHelper.SerializeDateTime(DateTime.UtcNow));
 
-			// Checkpoint #2. The job is in the implicit 'Fetched' state now.
-			// This state stores information about fetched time. The job will
-			// be re-queued when the JobTimeout will be expired.
+            // Checkpoint #2. The job is in the implicit 'Fetched' state now.
+            // This state stores information about fetched time. The job will
+            // be re-queued when the JobTimeout will be expired.
 
-			return new RedisFetchedJob(Redis, jobId, queueName, Prefix);
-		}
+            return new RedisFetchedJob(Redis, jobId, queueName, Prefix);
+        }
 
         public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
         {
@@ -397,5 +397,5 @@ namespace Hangfire.Redis.StackExchange
 
             return Prefix + key;
         }
-	}
+    }
 }
