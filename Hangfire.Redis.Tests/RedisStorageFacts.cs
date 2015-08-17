@@ -1,7 +1,9 @@
-﻿using Hangfire.Logging;
+﻿using Hangfire.Dashboard;
+using Hangfire.Logging;
 using NSubstitute;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Xunit;
 
 namespace Hangfire.Redis.StackExchange.Tests
@@ -72,5 +74,40 @@ namespace Hangfire.Redis.StackExchange.Tests
             Assert.Equal(0, queues.Count);
         }
 
+        [Fact]
+        public void GetInfo()
+        {
+            var DashboardMetric = Redis.Storage.GetDashboardInfo("Version", "redis_version");
+            Assert.Equal("Version", DashboardMetric.Title);
+            Assert.Equal("2.8.19", DashboardMetric.Func(null).Value);
+        }
+
+        [Fact]
+        public void GetInfo_NotFound()
+        {
+            var DashboardMetric = Redis.Storage.GetDashboardInfo("None", "null");
+            var Metric = DashboardMetric.Func(null);
+            Assert.Equal("Key not found", Metric.Value);
+            Assert.Equal(MetricStyle.Danger, Metric.Style);
+        }
+
+        [Fact]
+        public void GetInfo_Threaded()
+        {
+            DashboardMetric Result1 = null;
+            DashboardMetric Result2 = null;
+
+            var t = new Thread(() => Result1 = Redis.Storage.GetDashboardInfo("Version", "redis_version"));
+            var t2 = new Thread(() => Result2 = Redis.Storage.GetDashboardInfo("Blocked Clients", "blocked_clients"));
+            t.IsBackground = true;
+            t2.IsBackground = true;
+            t.Start();
+            t2.Start();
+
+            t.Join();
+            t2.Join();
+            Assert.Equal("2.8.19", Result1.Func(null).Value);
+            Assert.Equal("0", Result2.Func(null).Value);
+        }
     }
 }

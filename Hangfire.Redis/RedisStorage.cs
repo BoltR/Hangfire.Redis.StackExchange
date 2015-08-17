@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public 
 // License along with Hangfire.Redis.StackExchange. If not, see <http://www.gnu.org/licenses/>.
 
+using Hangfire.Dashboard;
 using Hangfire.Logging;
 using Hangfire.Server;
 using Hangfire.States;
@@ -23,6 +24,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace Hangfire.Redis.StackExchange
 {
@@ -34,6 +36,10 @@ namespace Hangfire.Redis.StackExchange
         private const string DefaultPort = "6379";
 
         private static Regex reg = new Regex("^Unspecified/", RegexOptions.Compiled);
+        private static readonly string[] SplitString = new string[] { "\r\n" };
+        private static Dictionary<string, string> RedisInfo;
+        private int LastUpdate;
+        private static readonly object Locker = new object();
 
         private RedisStorageInternals StorageInternals;
         private FetchedJobsWatcherOptions FetchedJobsOptions;
@@ -72,10 +78,7 @@ namespace Hangfire.Redis.StackExchange
             var LockID = Guid.NewGuid().ToString();
             StorageInternals = new RedisStorageInternals(prefix, LockID, Sub);
 
-
-
             FetchedJobsOptions = new FetchedJobsWatcherOptions(HangfireOptions);
-
         }
 
         public RedisStorage() : this(String.Format("{0}:{1}", DefaultHost, DefaultPort)) { }
@@ -108,6 +111,48 @@ namespace Hangfire.Redis.StackExchange
         public IDatabase GetDatabase()
         {
             return ServerPool.GetDatabase(Db);
+        }
+
+        
+        public DashboardMetric GetDashboardInfo(string title, string key)
+        {
+            UpdateInfoFromRedis();
+            string Value;
+            Metric Info;
+            if (RedisInfo.TryGetValue(key, out Value))
+            {
+                Info = new Metric(Value);
+            }
+            else
+            {
+                Info = new Metric("Key not found");
+                Info.Style = MetricStyle.Danger;
+            }
+            return new DashboardMetric("redis:" + key, title, (RazorPage) => Info);
+        }
+
+        private void UpdateInfoFromRedis()
+        {
+            if (RedisInfo == null || unchecked(Environment.TickCount - LastUpdate) > 1000)
+            {
+                lock (Locker)
+                {
+                    if (RedisInfo == null || unchecked(Environment.TickCount - LastUpdate) > 1000)
+                    {
+                        RedisInfo = new Dictionary<string, string>();
+                        var RawInfo = ServerPool.GetServer(ServerPool.GetDatabase(Db).IdentifyEndpoint()).InfoRaw();
+                        foreach (var item in RawInfo.Split(SplitString, StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            var InfoPair = item.Split(':');
+                            if (InfoPair.Length > 1)
+                            {
+                                RedisInfo.Add(InfoPair[0], InfoPair[1]);
+                            }
+                        }
+                        LastUpdate = Environment.TickCount;
+                    }
+                }
+            }
         }
 
         internal RedisSubscribe GetSubscribe()

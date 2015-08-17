@@ -41,6 +41,15 @@ GlobalConfiguration.Configuration.UseRedisStorage("localhost:6379", new RedisSto
 });
 ```
 
+You can include extra stats from your Redis server on your dashboard in the following way:
+```c#
+        GlobalConfiguration.Configuration.UseDashboardMetric(((RedisStorage)JobStorage.Current).GetDashboardInfo("Version", "redis_version"));
+```
+**Note:** For this to work, you must create your Redis connection with ```allowAdmin=true```. You will recieve an exception otherwise.
+
+A list of avaiable INFO keys can be found at [here](http://redis.io/commands/INFO).
+
+
 
 ## NuGet
 
