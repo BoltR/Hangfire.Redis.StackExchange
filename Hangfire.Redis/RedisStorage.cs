@@ -24,7 +24,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading;
 
 namespace Hangfire.Redis.StackExchange
 {
@@ -116,7 +115,12 @@ namespace Hangfire.Redis.StackExchange
         
         public DashboardMetric GetDashboardInfo(string title, string key)
         {
-            UpdateInfoFromRedis();
+            return GetDashboardInfo(ServerPool, title, key);
+        }
+
+        public DashboardMetric GetDashboardInfo(ConnectionMultiplexer Connection, string title, string key)
+        {
+            UpdateInfoFromRedis(Connection);
             string Value;
             Metric Info;
             if (RedisInfo.TryGetValue(key, out Value))
@@ -131,7 +135,7 @@ namespace Hangfire.Redis.StackExchange
             return new DashboardMetric("redis:" + key, title, (RazorPage) => Info);
         }
 
-        private void UpdateInfoFromRedis()
+        private void UpdateInfoFromRedis(ConnectionMultiplexer Connection)
         {
             if (RedisInfo == null || unchecked(Environment.TickCount - LastUpdate) > 1000)
             {
@@ -140,7 +144,7 @@ namespace Hangfire.Redis.StackExchange
                     if (RedisInfo == null || unchecked(Environment.TickCount - LastUpdate) > 1000)
                     {
                         RedisInfo = new Dictionary<string, string>();
-                        var RawInfo = ServerPool.GetServer(ServerPool.GetDatabase(Db).IdentifyEndpoint()).InfoRaw();
+                        var RawInfo = Connection.GetServer(Connection.GetDatabase(Db).IdentifyEndpoint()).InfoRaw();
                         foreach (var item in RawInfo.Split(SplitString, StringSplitOptions.RemoveEmptyEntries))
                         {
                             var InfoPair = item.Split(':');
