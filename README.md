@@ -3,11 +3,9 @@ Hangfire.Redis.StackExchange
 
 A quick port of the old Hangfire.Redis library to use StackExchange.Redis
 
----
 ## Documentation
 Basic configuration mimics [stock Hangfire behaviour](http://docs.hangfire.io/en/latest/configuration/using-redis.html). However, it's possible to pass your StackExchange.Redis ConfigurationOptions in directly.
 
----
 ## Configuration
 #### Basic Setup
 
@@ -58,12 +56,10 @@ GlobalConfiguration.Configuration.UseDashboardMetric(GetDashboardInfo(IServer, "
 ```
 A list of avaiable INFO keys can be found at [here](http://redis.io/commands/INFO).
 
----
 ## NuGet
 
 Can be found on NuGet at https://www.nuget.org/packages/HangFire.Redis.SE/
 
----
 ## Changelog
 ### 1.4.0
 * Fixed issues with multiple queues
