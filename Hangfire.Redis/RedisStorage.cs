@@ -173,24 +173,24 @@ namespace Hangfire.Redis.StackExchange
                 }
             }
 
-            if (Cache.Uninitialized || unchecked(Environment.TickCount - Cache.LastUpdateTime) > 1000)
+            if (Cache.InfoLookup == null || unchecked(Environment.TickCount - Cache.LastUpdateTime) > 1000)
             {
                 lock (Cache.Locker)
                 {
-                    if (Cache.Uninitialized || unchecked(Environment.TickCount - Cache.LastUpdateTime) > 1000)
+                    if (Cache.InfoLookup == null || unchecked(Environment.TickCount - Cache.LastUpdateTime) > 1000)
                     {
-                        Cache.InfoLookup = new Dictionary<string, string>();
+                        var Temp = new Dictionary<string, string>();
                         var RawInfo = Server.InfoRaw();
                         foreach (var item in RawInfo.Split(SplitString, StringSplitOptions.RemoveEmptyEntries))
                         {
                             var InfoPair = item.Split(':');
                             if (InfoPair.Length > 1)
                             {
-                                Cache.InfoLookup.Add(InfoPair[0], InfoPair[1]);
+                                Temp.Add(InfoPair[0], InfoPair[1]);
                             }
                         }
+                        Cache.UpdateInfo(Temp);
                         Cache.LastUpdateTime = Environment.TickCount;
-                        Cache.Uninitialized = false;
                     }
                 }
             }
