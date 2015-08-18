@@ -36,7 +36,7 @@ namespace Hangfire.Redis.StackExchange
 
         private static Regex reg = new Regex("^Unspecified/", RegexOptions.Compiled);
         private static readonly string[] SplitString = new string[] { "\r\n" };
-        private static Dictionary<IServer, RedisInfoCache> RedisInfo = new Dictionary<IServer, RedisInfoCache>();
+        private static Dictionary<string, RedisInfoCache> RedisInfo = new Dictionary<string, RedisInfoCache>();
         private static readonly object Locker = new object();
 
         private RedisStorageInternals StorageInternals;
@@ -161,13 +161,25 @@ namespace Hangfire.Redis.StackExchange
         private Dictionary<string, string> GetInfoFromRedis(IServer Server)
         {
             RedisInfoCache Cache;
-            if (!RedisInfo.TryGetValue(Server, out Cache) || unchecked(Environment.TickCount - Cache.LastUpdateTime) > 1000)
+            if (!RedisInfo.TryGetValue(Server.EndPoint.ToString(), out Cache))
             {
                 lock (Locker)
                 {
-                    if (!RedisInfo.TryGetValue(Server, out Cache) || unchecked(Environment.TickCount - Cache.LastUpdateTime) > 1000)
+                    if (!RedisInfo.TryGetValue(Server.EndPoint.ToString(), out Cache))
                     {
                         Cache = new RedisInfoCache();
+                        RedisInfo.Add(Server.EndPoint.ToString(), Cache);
+                    }
+                }
+            }
+
+            if (Cache.Uninitialized || unchecked(Environment.TickCount - Cache.LastUpdateTime) > 1000)
+            {
+                lock (Cache.Locker)
+                {
+                    if (Cache.Uninitialized || unchecked(Environment.TickCount - Cache.LastUpdateTime) > 1000)
+                    {
+                        Cache.InfoLookup = new Dictionary<string, string>();
                         var RawInfo = Server.InfoRaw();
                         foreach (var item in RawInfo.Split(SplitString, StringSplitOptions.RemoveEmptyEntries))
                         {
@@ -178,6 +190,7 @@ namespace Hangfire.Redis.StackExchange
                             }
                         }
                         Cache.LastUpdateTime = Environment.TickCount;
+                        Cache.Uninitialized = false;
                     }
                 }
             }
