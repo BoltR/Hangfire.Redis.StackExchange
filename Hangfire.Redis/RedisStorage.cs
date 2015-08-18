@@ -36,8 +36,7 @@ namespace Hangfire.Redis.StackExchange
 
         private static Regex reg = new Regex("^Unspecified/", RegexOptions.Compiled);
         private static readonly string[] SplitString = new string[] { "\r\n" };
-        private static Dictionary<string, string> RedisInfo;
-        private int LastUpdate;
+        private static Dictionary<IServer, RedisInfoCache> RedisInfo = new Dictionary<IServer, RedisInfoCache>();
         private static readonly object Locker = new object();
 
         private RedisStorageInternals StorageInternals;
@@ -112,18 +111,42 @@ namespace Hangfire.Redis.StackExchange
             return ServerPool.GetDatabase(Db);
         }
 
-        
+        /// <summary>
+        /// Retrieves INFO from a random server in the pool for the dashboard
+        /// </summary>
+        /// <param name="title">Title to appear on the dashboard</param>
+        /// <param name="key">Redis INFO key</param>
+        /// <returns></returns>
         public DashboardMetric GetDashboardInfo(string title, string key)
         {
             return GetDashboardInfo(ServerPool, title, key);
         }
 
+        /// <summary>
+        /// Provide an alternate ConnectionMultiplexer to use for INFO command
+        /// </summary>
+        /// <param name="Connection"></param>
+        /// <param name="title">Title to appear on the dashboard</param>
+        /// <param name="key">Redis INFO key</param>
+        /// <returns></returns>
         public DashboardMetric GetDashboardInfo(ConnectionMultiplexer Connection, string title, string key)
         {
-            UpdateInfoFromRedis(Connection);
+            return GetDashboardInfo(Connection.GetServer(Connection.GetDatabase(Db).IdentifyEndpoint()), title, key);
+        }
+
+        /// <summary>
+        /// Provides information about a specific server
+        /// </summary>
+        /// <param name="Server"></param>
+        /// <param name="title">Title to appear on the dashboard</param>
+        /// <param name="key">Redis INFO key</param>
+        /// <returns></returns>
+        public DashboardMetric GetDashboardInfo(IServer Server, string title, string key)
+        {
+            var Lookup = GetInfoFromRedis(Server);
             string Value;
             Metric Info;
-            if (RedisInfo.TryGetValue(key, out Value))
+            if (Lookup.TryGetValue(key, out Value))
             {
                 Info = new Metric(Value);
             }
@@ -132,31 +155,33 @@ namespace Hangfire.Redis.StackExchange
                 Info = new Metric("Key not found");
                 Info.Style = MetricStyle.Danger;
             }
-            return new DashboardMetric("redis:" + key, title, (RazorPage) => Info);
+            return new DashboardMetric("redis:" + Server.EndPoint.ToString() + key, title, (RazorPage) => Info);
         }
 
-        private void UpdateInfoFromRedis(ConnectionMultiplexer Connection)
+        private Dictionary<string, string> GetInfoFromRedis(IServer Server)
         {
-            if (RedisInfo == null || unchecked(Environment.TickCount - LastUpdate) > 1000)
+            RedisInfoCache Cache;
+            if (!RedisInfo.TryGetValue(Server, out Cache) || unchecked(Environment.TickCount - Cache.LastUpdateTime) > 1000)
             {
                 lock (Locker)
                 {
-                    if (RedisInfo == null || unchecked(Environment.TickCount - LastUpdate) > 1000)
+                    if (!RedisInfo.TryGetValue(Server, out Cache) || unchecked(Environment.TickCount - Cache.LastUpdateTime) > 1000)
                     {
-                        RedisInfo = new Dictionary<string, string>();
-                        var RawInfo = Connection.GetServer(Connection.GetDatabase(Db).IdentifyEndpoint()).InfoRaw();
+                        Cache = new RedisInfoCache();
+                        var RawInfo = Server.InfoRaw();
                         foreach (var item in RawInfo.Split(SplitString, StringSplitOptions.RemoveEmptyEntries))
                         {
                             var InfoPair = item.Split(':');
                             if (InfoPair.Length > 1)
                             {
-                                RedisInfo.Add(InfoPair[0], InfoPair[1]);
+                                Cache.InfoLookup.Add(InfoPair[0], InfoPair[1]);
                             }
                         }
-                        LastUpdate = Environment.TickCount;
+                        Cache.LastUpdateTime = Environment.TickCount;
                     }
                 }
             }
+            return Cache.InfoLookup;
         }
 
         internal RedisSubscribe GetSubscribe()

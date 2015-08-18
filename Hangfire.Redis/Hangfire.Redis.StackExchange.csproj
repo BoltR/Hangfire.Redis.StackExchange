@@ -71,6 +71,7 @@
     <Compile Include="RedisExtensionMethods.cs" />
     <Compile Include="RedisFetchedJob.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RedisInfoCache.cs" />
     <Compile Include="RedisLock.cs" />
     <Compile Include="RedisStorageInternals.cs" />
     <Compile Include="RedisStorageOptions.cs" />
