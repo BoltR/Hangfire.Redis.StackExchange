@@ -79,7 +79,7 @@ namespace Hangfire.Redis.StackExchange.Tests
         {
             var DashboardMetric = Redis.Storage.GetDashboardInfo("Version", "redis_version");
             Assert.Equal("Version", DashboardMetric.Title);
-            Assert.Equal("2.8.19", DashboardMetric.Func(null).Value);
+            Assert.Equal("3.0.501", DashboardMetric.Func(null).Value);
         }
 
         [Fact]
@@ -106,7 +106,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 
             t.Join();
             t2.Join();
-            Assert.Equal("2.8.19", Result1.Func(null).Value);
+            Assert.Equal("3.0.501", Result1.Func(null).Value);
             Assert.Equal("0", Result2.Func(null).Value);
         }
     }

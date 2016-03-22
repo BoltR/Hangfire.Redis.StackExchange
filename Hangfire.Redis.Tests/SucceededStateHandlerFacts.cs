@@ -1,6 +1,8 @@
 ﻿using Hangfire.States;
 using Hangfire.Storage;
 using NSubstitute;
+using System;
+using System.Reflection;
 using Xunit;
 
 namespace Hangfire.Redis.StackExchange.Tests
@@ -11,14 +13,21 @@ namespace Hangfire.Redis.StackExchange.Tests
 
         private readonly ApplyStateContextMock _context;
         private readonly IWriteOnlyTransaction _transaction;
-        
+
         public SucceededStateHandlerFacts()
         {
             _context = new ApplyStateContextMock();
-            _context.StateContextValue.JobIdValue = JobId;
-            _context.NewStateValue = new SucceededState(null, 11, 123);
-
+            _context.Job.Id = JobId;
+            _context.NewStateValue = CreateSucceededState();
             _transaction = Substitute.For<IWriteOnlyTransaction>();
+        }
+
+        // SucceededState has been made internal in Hangfire.Core
+        private SucceededState CreateSucceededState()
+        {
+            return (SucceededState)typeof(SucceededState).GetConstructor(
+                  BindingFlags.NonPublic | BindingFlags.Instance,
+                  null, new Type[] { typeof(object), typeof(long), typeof(long) }, null).Invoke(new object[] { null, 11, 223 });
         }
 
         [Fact]

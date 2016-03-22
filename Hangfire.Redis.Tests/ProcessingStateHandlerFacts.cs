@@ -1,6 +1,7 @@
 ﻿using Hangfire.States;
-using Hangfire.Storage;
 using NSubstitute;
+using System;
+using System.Reflection;
 using Xunit;
 
 namespace Hangfire.Redis.StackExchange.Tests
@@ -10,15 +11,20 @@ namespace Hangfire.Redis.StackExchange.Tests
         private const string JobId = "1";
 
         private readonly ApplyStateContextMock _context;
-        private readonly IWriteOnlyTransaction _transaction;
-        
+
         public ProcessingStateHandlerFacts()
         {
             _context = new ApplyStateContextMock();
-            _context.StateContextValue.JobIdValue = JobId;
-            _context.NewStateValue = new ProcessingState("server", 1);
+            _context.Job.Id = JobId;
+            _context.NewStateValue = CreateProcessingState();
+        }
 
-            _transaction = Substitute.For<IWriteOnlyTransaction>();
+        // ProcessingState has been made internal in Hangfire.Core
+        private ProcessingState CreateProcessingState()
+        {
+            return (ProcessingState)typeof(ProcessingState).GetConstructor(
+                  BindingFlags.NonPublic | BindingFlags.Instance,
+                  null, new Type[] { typeof(string), typeof(string) }, null).Invoke(new object[] { "server", "1" });
         }
 
         [Fact]
@@ -32,18 +38,18 @@ namespace Hangfire.Redis.StackExchange.Tests
         public void Apply_ShouldAddTheJob_ToTheProcessingSet()
         {
             var handler = new ProcessingStateHandler();
-            handler.Apply(_context.Object, _transaction);
+            handler.Apply(_context.Object, _context.Transaction);
 
-            _transaction.Received().AddToSet("processing", JobId, Arg.Any<double>());
+            _context.Transaction.Received().AddToSet("processing", JobId, Arg.Any<double>());
         }
 
         [Fact]
         public void Unapply_ShouldRemoveTheJob_FromTheProcessingSet()
         {
             var handler = new ProcessingStateHandler();
-            handler.Unapply(_context.Object, _transaction);
+            handler.Unapply(_context.Object, _context.Transaction);
 
-            _transaction.Received().RemoveFromSet("processing", JobId);
+            _context.Transaction.Received().RemoveFromSet("processing", JobId);
         }
     }
 }

@@ -80,7 +80,7 @@ namespace Hangfire.Redis.StackExchange
                     new RedisValue[] { "StartedAt", "ServerName", "ServerId", "State" },
                     (job, jobData, state) => new ProcessingJobDto
                     {
-                        ServerId = state[2] ?? state[1],
+                        ServerId = state[2] ?? state[1] ?? "Completed",
                         Job = job,
                         StartedAt = JobHelper.DeserializeNullableDateTime(state[0]),
                         InProcessingState = ProcessingState.StateName.Equals(state[3], StringComparison.OrdinalIgnoreCase),

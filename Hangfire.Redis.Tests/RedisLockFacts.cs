@@ -91,7 +91,7 @@ namespace Hangfire.Redis.StackExchange.Tests
             {
                 using (var lock1 = new RedisLock(Database, "lock", "1", TimeSpan.FromMilliseconds(30)))
                 {
-                    Thread.Sleep(20); //Sleep to give the wait loop time to run. If not set high enough lock2 will Timeout
+                    Thread.Sleep(30); //Sleep to give the wait loop time to run. If not set high enough lock2 will Timeout
                     using (var lock2 = new RedisLock(Database, "lock", "2", TimeSpan.FromMilliseconds(30)))
                     {
 

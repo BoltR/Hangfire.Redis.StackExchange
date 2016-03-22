@@ -110,7 +110,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 
             Assert.Equal(CreatedAt, Job.CreatedAt);
             Assert.Equal("Console", Job.Job.Type.Name);
-            Assert.Equal(@"""Test""", Job.Job.Arguments[0]);
+            Assert.Equal("Test", Job.Job.Args[0]);
 
             Assert.Equal(3, Job.History.Count);
             Assert.Equal("Enqueued", Job.History[0].StateName);

@@ -31,7 +31,7 @@ namespace Hangfire.Redis.StackExchange.Tests
 
             RedisServer = new Process();
             RedisServer.StartInfo.FileName = assemblyFile + "//redis-server.exe";
-            RedisServer.StartInfo.Arguments = "--maxheap 8000000 --port " + Port;
+            RedisServer.StartInfo.Arguments = "--port " + Port;
             RedisServer.StartInfo.UseShellExecute = false;
             RedisServer.Start();
 

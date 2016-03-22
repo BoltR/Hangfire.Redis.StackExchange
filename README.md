@@ -36,23 +36,23 @@ Further options for configuration can be found in the `RedisStorageOptions` clas
 ```c#
 GlobalConfiguration.Configuration.UseRedisStorage("localhost:6379", new RedisStorageOptions()
 {
-	Db = 0,
-	Prefix = "hangfire:"
+    Db = 0,
+    Prefix = "hangfire:"
 });
 ```
 
 #### Dashboard
 You can display extra stats from your Redis server on your dashboard. If you use an admin connection by default you can do so as easily as:
 ```c#
-GlobalConfiguration.Configuration.UseDashboardMetric(GetDashboardInfo("Version", "redis_version"));
+GlobalConfiguration.Configuration.UseDashboardMetric(RedisStorage.GetDashboardInfo("Version", "redis_version"));
 ```
 If you maintain a seperate `ConnectionMultiplexer` with administrator privilages you are able to use that instead:
 ```c#
-GlobalConfiguration.Configuration.UseDashboardMetric(GetDashboardInfo(AdminMultiplexer, "Version", "redis_version"));
+GlobalConfiguration.Configuration.UseDashboardMetric(RedisStorage.GetDashboardInfo(AdminMultiplexer, "Version", "redis_version"));
 ```
 The above two examples select a server at random to pull INFO from. This is not an issue if you only have one Redis server, but if you have them clustered you can retrieve information from each seperately by passing an `IServer`:
 ```c#
-GlobalConfiguration.Configuration.UseDashboardMetric(GetDashboardInfo(IServer, "Server 1: Version", "redis_version"));
+GlobalConfiguration.Configuration.UseDashboardMetric(RedisStorage.GetDashboardInfo(IServer, "Server 1: Version", "redis_version"));
 ```
 A list of avaiable INFO keys can be found at [here](http://redis.io/commands/INFO).
 
